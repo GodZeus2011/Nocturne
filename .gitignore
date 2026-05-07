@@ -13,6 +13,9 @@ data/output/*
 
 assets/models/
 
+*.log
+data/*.log
+
 .DS_Store
 Thumbs.db
 

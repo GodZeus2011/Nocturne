@@ -2,6 +2,7 @@ import webview
 import threading
 import time
 from src.core.config import APP_NAME, VERSION
+from src.utils.logger import logger
 
 class NocturneAPI:
     def __init__(self):
@@ -20,10 +21,24 @@ class NocturneAPI:
     
     def select_audio(self):
         if self._window:
+            logger.info("Opening file dialog...") 
             file_types = ('Audio Files (*.mp3;*.wav;*.flac)', 'All files (*.*)')
-            result = self._window.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False, file_types=file_types)
-            return result[0] if result else None
+            result = self._window.create_file_dialog(
+                webview.OPEN_DIALOG, 
+                allow_multiple=False, 
+                file_types=file_types
+            )
+
+            if result:
+                logger.info(f"User selected: {result[0]}") 
+                return result[0]
+            else:
+                logger.warning("User cancelled the file dialog.") 
+                return None
+        
+        logger.error("Internal Error: API attempted to open dialog without a window object.")
         return None
+
 
     def start_processing(self, file_path):
         if self.is_processing:
