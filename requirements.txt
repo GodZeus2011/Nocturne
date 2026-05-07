@@ -1,0 +1,13 @@
+pywebview==4.4.1
+torch
+torchaudio
+demucs
+librosa
+torchcrepe
+numpy
+scipy
+pretty_midi
+mido
+colorama
+pyinstaller
+setuptools
