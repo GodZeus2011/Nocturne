@@ -12,6 +12,11 @@ else:
 WEB_DIR = BASE_DIR / "web"
 ASSETS_DIR = BASE_DIR / "assets"
 
+BIN_DIR = BASE_DIR / "bin"
+if BIN_DIR.exists():
+    import os
+    os.environ["PATH"] += os.pathsep + str(BIN_DIR)
+
 if IS_FROZEN:
     EXECUTABLE_DIR = Path(sys.executable).parent
     DATA_DIR = EXECUTABLE_DIR / "data"

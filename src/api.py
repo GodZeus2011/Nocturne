@@ -4,12 +4,14 @@ import time
 from pathlib import Path
 from src.core.config import APP_NAME, VERSION, INTERIM_DIR
 from src.utils.logger import logger
+from src.services.separation import SeperationService
 
 class NocturneAPI:
     def __init__(self):
         self._window = None
         self.is_processing = False
         self.current_project = None
+        self.separation_service = SeperationService()
 
     def set_window(self, window):
         self._window = window
@@ -75,17 +77,21 @@ class NocturneAPI:
     def _run_pipeline(self, file_path):
         self.is_processing = True
         try:
-            self._update_ui("Status: Extracting stems...", 10)
-            time.sleep(2) 
-            
-            self._update_ui("Status: Transcribing notes...", 50)
-            time.sleep(2)
-            
-            self._update_ui("Status: Arranging for piano...", 90)
-            time.sleep(1)
-            
-            self._update_ui("Complete!", 100)
+            workspace = self.current_project["workspace"]
+
+            self._update_ui("AI Separation: Unmixing audio...", 20)
+
+            stems_path = self.separation_service.run_seperation(
+                file_path,
+                workspace,
+                progress_callback=self._update_ui
+            )
+
+            logger.info(f"Stems are located at: {stems_path}")
+            self._update_ui("Separation Complete!", 40)
+
         except Exception as e:
+            logger.error(f"Pipeline Error: {e}")
             self._update_ui(f"Error: {str(e)}", 0)
         finally:
             self.is_processing = False
