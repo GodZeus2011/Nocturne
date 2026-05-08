@@ -5,6 +5,7 @@ from pathlib import Path
 from src.core.config import APP_NAME, VERSION, INTERIM_DIR
 from src.utils.logger import logger
 from src.services.separation import SeperationService
+from src.services.transcription import TranscriptionService
 
 class NocturneAPI:
     def __init__(self):
@@ -12,6 +13,7 @@ class NocturneAPI:
         self.is_processing = False
         self.current_project = None
         self.separation_service = SeperationService()
+        self.transcription_service = TranscriptionService()
 
     def set_window(self, window):
         self._window = window
@@ -88,7 +90,16 @@ class NocturneAPI:
             )
 
             logger.info(f"Stems are located at: {stems_path}")
-            self._update_ui("Separation Complete!", 40)
+            
+            self._update_ui("Analyzing rhythm and tempo...", 50)
+
+            tempo_data = self.transcription_service.get_tempo_data(stems_path)
+
+            self.current_project["bpm"] = tempo_data["bpm"]
+            self.current_project["beat_times"] = tempo_data["beat_times"]
+
+            logger.info(f"Rhythm Analysis Complete: {tempo_data['bpm']:.2f} BPM")
+            self._update_ui(f"Tempo Detected: {int(tempo_data['bpm'])} BPM", 60)
 
         except Exception as e:
             logger.error(f"Pipeline Error: {e}")
