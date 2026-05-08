@@ -1,6 +1,9 @@
 import torch
 import subprocess
 import sys 
+import librosa
+import soundfile as sf
+import numpy as np
 from pathlib import Path
 from src.utils.logger import logger
 
@@ -32,12 +35,37 @@ class SeperationService:
             if progress_callback:
                 progress_callback("AI is unmixing your song...", 20)
 
-                result = subprocess.run(cmd,  check=True)
+            subprocess.run(cmd,  check=True)
+            logger.info("Demucs finished successfully.")
 
-                logger.info("Demucs finished successfully.")
+            expected_folder = output_root / "htdemucs" / input_path.stem
 
-                expected_folder = output_root / "htdemucs" / input_path.stem
-                return expected_folder
+            if progress_callback:
+                progress_callback("Cleaning audio signals...", 35)
+            self._post_process_stems(expected_folder)
+
+            return expected_folder
+            
         except subprocess.CalledProcessError as e:
             logger.error(f"Demucs AI Error: {e.stderr}")
             raise Exception("AI separation failed. Make sure you have enough RAM/Disk space.")
+    
+    def _post_process_stems(self, stems_folder):
+        wanted_files = ["bass.wav", "other.wav"]
+
+        for file_name in wanted_files:
+            stem_path = stems_folder / file_name
+
+            if stem_path.exists():
+                logger.info(f"Cleaning: {file_name}")
+
+                audio, sr = librosa.load(stem_path, sr=None)
+
+                max_val = np.max(np.abs(audio))
+                if max_val > 0:
+                    audio = audio / max_val
+
+                audio_trimmed, _ = librosa.effects.trim(audio, top_db=30)
+
+                sf.write(stem_path, audio_trimmed, sr)
+        logger.info("Signal Prep complete")
