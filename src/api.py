@@ -99,6 +99,14 @@ class NocturneAPI:
             self.current_project["beat_times"] = tempo_data["beat_times"]
 
             logger.info(f"Rhythm Analysis Complete: {tempo_data['bpm']:.2f} BPM")
+
+            test_time = 5.0
+            raw_ticks = self.transcription_service.time2ticks(test_time, tempo_data["beat_times"])
+            q_start, q_end = self.transcription_service.quantize_note(raw_ticks, raw_ticks + 100)
+
+            logger.info(f"TEST: 5.0s -> Raw Ticks: {raw_ticks}")
+            logger.info(f"TEST: 5.0s -> Quantized Start: {q_start}")
+
             self._update_ui(f"Tempo Detected: {int(tempo_data['bpm'])} BPM", 60)
 
         except Exception as e:
