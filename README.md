@@ -17,3 +17,19 @@ This is the basics, focused on creating a reliable foundation for the rest of th
     - `Note`: Tracks pitch (MIDI), micro-timing, velocity, and hand.
     - `Chord`: Stores harmonic groups of notes (chords) -> support for future root detection and labels.
     - `Arrangement`: Manages global song metadata like tempo, key, and meter.
+
+
+## Stage 2: Audio Intelligence
+
+Transform raw, mixed audio into clean, separated files ready for transcription.
+
+### Implementations:
+
++ **Stem Separation:** Added the `htdemucs` model to separate the audio file. This splits the audio into - Vocals, Bass, Drums, and Other (Piano/Guitar/etc).
++ **Hardware Support:** Checks the machine for NIVIDIA CUDA support.
+    - **High Performance:** Uses GPU (CUDA) for fast processing.
+    - **Default:** Uses CPU processing for standard machines without CUDA.
++ **Workspaces:** Every song is treated as a unique project. The system handles the files and creates isolated directories in (`data/interim`) to avoid data collisions.
++ **Pre-Processing:** Digital Signal Processing (DSP) layer using `Librosa` and `NumPy` to clean AI outputs:
+    - **Peak Normalization:** Scales audio to 1.0 amplitude to ensure maximum accuracy for pitch detection.
++ **FFmpeg Shared-Library:**  Bundled full-shared FFmpeg binaries and DLLs within the app, so you don't need to install external dependencies.
