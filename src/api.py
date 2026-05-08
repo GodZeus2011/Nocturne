@@ -1,16 +1,57 @@
 import webview
 import threading
 import time
-from src.core.config import APP_NAME, VERSION
+from pathlib import Path
+from src.core.config import APP_NAME, VERSION, INTERIM_DIR
 from src.utils.logger import logger
 
 class NocturneAPI:
     def __init__(self):
         self._window = None
         self.is_processing = False
+        self.current_project = None
 
     def set_window(self, window):
         self._window = window
+
+    def select_audio(self):
+            if not self._window:
+                return None
+
+            file_types = ('Audio Files (*.mp3;*.wav;*.flac;*.m4a)', 'All files (*.*)')
+            result = self._window.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False, file_types=file_types)
+
+            if not result:
+                logger.warning("User cancelled file selection.")
+                return None
+            
+            raw_path = result[0]
+            return self._prepare_workspace(raw_path)
+    
+    def _prepare_workspace(self, raw_path):
+        path = Path(raw_path)
+
+        valid_extensions = ['.mp3', '.wav', '.flac', '.m4a']
+        if path.suffix.lower() not in valid_extensions:
+            logger.error(f"Unsupported file type: {path.suffix}")
+            return {"status": "error", "message": "Unsupported file format."}
+        
+        if not path.exists():
+            logger.error(f"File not found: {path.suffix}")
+            return {"status": "error", "message": "File no longer exists."}
+        
+        song_folder = INTERIM_DIR / path.stem
+        song_folder.mkdir(parents=True, exist_ok=True)
+
+        self.current_project = {
+            "input_path": str(path),
+            "workspace": str(song_folder),
+            "song_name": path.stem
+        }
+
+        logger.info(f"Workspace prepared: {song_folder}")
+
+        return str(path)
 
     def get_app_info(self):
         return {
@@ -18,27 +59,6 @@ class NocturneAPI:
             "version": VERSION,
             "status": "Ready"
         }
-    
-    def select_audio(self):
-        if self._window:
-            logger.info("Opening file dialog...") 
-            file_types = ('Audio Files (*.mp3;*.wav;*.flac)', 'All files (*.*)')
-            result = self._window.create_file_dialog(
-                webview.OPEN_DIALOG, 
-                allow_multiple=False, 
-                file_types=file_types
-            )
-
-            if result:
-                logger.info(f"User selected: {result[0]}") 
-                return result[0]
-            else:
-                logger.warning("User cancelled the file dialog.") 
-                return None
-        
-        logger.error("Internal Error: API attempted to open dialog without a window object.")
-        return None
-
 
     def start_processing(self, file_path):
         if self.is_processing:
