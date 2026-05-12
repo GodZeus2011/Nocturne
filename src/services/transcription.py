@@ -119,3 +119,27 @@ class TranscriptionService:
 
         return pitch.squeeze().numpy(), periodicity.squeeze().numpy()
 
+    @staticmethod
+
+    def _pitch_to_midi(self, hz):
+        if hz <= 0:
+            return 0
+        midi_num = 12 * np.log2(hz / 440.0) + 69
+        return int(round(midi_num))
+
+    def _clean_pitch_data(self, pitches, periodicities):
+        clean_midi = []
+
+        for p, c in zip(pitches, periodicities):
+            if c < -5.0 or p <= 0:
+                clean_midi.append(0)
+            else:
+                midi = self._pitch_to_midi(p)
+
+                if 21 <= midi <= 108:
+                    clean_midi.append(midi)
+                else:
+                    clean_midi.append(0)
+        return np.array(clean_midi)
+
+

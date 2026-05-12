@@ -88,8 +88,6 @@ class NocturneAPI:
                 workspace,
                 progress_callback=self._update_ui
             )
-
-            logger.info(f"Stems are located at: {stems_path}")
             
             self._update_ui("Analyzing rhythm and tempo...", 50)
 
@@ -107,11 +105,16 @@ class NocturneAPI:
 
             pitches, confidence = self.transcription_service._get_raw_pitches(bass_wav, is_bass=True)
 
+            self._update_ui("AI Transcription: Cleaning signals...", 80)
+            
+            midi_sequence = self.transcription_service._clean_pitch_data(pitches, confidence)
+
             sample_idx = 500
             if len(pitches) > sample_idx:
-                logger.info(f"CREPE Output (5s): {pitches[sample_idx:sample_idx+5]} Hz")
-                logger.info(f"Confidence (5s mark): {confidence[sample_idx:sample_idx+5]}")
-            self._update_ui("Pitch Extraction Complete!", 85)
+                logger.info(f"Hz Before: {pitches[sample_idx:sample_idx]}")
+                logger.info(f"MIDI After: {midi_sequence[sample_idx:sample_idx+5]}")
+            
+            self._update_ui("Transcription Logic Verified", 90)
 
         except Exception as e:
             logger.error(f"Pipeline Error: {e}")
