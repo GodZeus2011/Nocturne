@@ -2,6 +2,8 @@ import librosa
 import numpy as np
 from pathlib import Path
 from src.utils.logger import logger
+import torch
+import torchcrepe  
 
 class TranscriptionService:
     def get_tempo_data(self, stems_folder):
@@ -92,3 +94,28 @@ class TranscriptionService:
         except Exception as e:
             logger.warning(f"Meter detection failed, defaulting to 4/4. Error: {e}")
             return "4/4"
+    
+    def _get_raw_pitches(self, audio_path, is_bass=False):
+        logger.info(f"Running AI Pitch Tracking on: {audio_path.name}")
+
+        audio, sr = librosa.load(audio_path, sr=16000)
+        
+        audio_tensor = torch.from_numpy(audio).unsqueeze(0)
+        
+        fmin = 30 if is_bass else 50
+        fmax = 300 if is_bass else 2000
+
+        pitch, periodicity = torchcrepe.predict(
+            audio_tensor,
+            sample_rate=16000,
+            hop_length=160,
+            fmin=fmin,
+            fmax=fmax,
+            model='tiny',
+            device='cpu',
+            batch_size=2048,
+            return_periodicity=True
+        )
+
+        return pitch.squeeze().numpy(), periodicity.squeeze().numpy()
+

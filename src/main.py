@@ -1,7 +1,10 @@
 import webview
+import warnings
 from src.core.config import WEB_DIR, APP_NAME, DEBUG
 from src.api import NocturneAPI
 from src.core.models import Note
+
+warnings.filterwarnings("ignore", category=UserWarning)
 
 def main():
     api = NocturneAPI()

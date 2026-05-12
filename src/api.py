@@ -97,17 +97,21 @@ class NocturneAPI:
 
             self.current_project["bpm"] = tempo_data["bpm"]
             self.current_project["beat_times"] = tempo_data["beat_times"]
+            self.current_project["time_signature"] = tempo_data["time_signature"]
 
-            logger.info(f"Rhythm Analysis Complete: {tempo_data['bpm']:.2f} BPM")
+            logger.info(f"Rhythm Analysis Complete: {tempo_data['bpm']:.2f} BPM ({tempo_data['time_signature']})")
 
-            test_time = 5.0
-            raw_ticks = self.transcription_service.time2ticks(test_time, tempo_data["beat_times"])
-            q_start, q_end = self.transcription_service.quantize_note(raw_ticks, raw_ticks + 100)
+            self._update_ui("AI Transcription: Extracting pitches...", 70)
 
-            logger.info(f"TEST: 5.0s -> Raw Ticks: {raw_ticks}")
-            logger.info(f"TEST: 5.0s -> Quantized Start: {q_start}")
+            bass_wav = stems_path / "bass.wav"
 
-            self._update_ui(f"Tempo Detected: {int(tempo_data['bpm'])} BPM", 60)
+            pitches, confidence = self.transcription_service._get_raw_pitches(bass_wav, is_bass=True)
+
+            sample_idx = 500
+            if len(pitches) > sample_idx:
+                logger.info(f"CREPE Output (5s): {pitches[sample_idx:sample_idx+5]} Hz")
+                logger.info(f"Confidence (5s mark): {confidence[sample_idx:sample_idx+5]}")
+            self._update_ui("Pitch Extraction Complete!", 85)
 
         except Exception as e:
             logger.error(f"Pipeline Error: {e}")
