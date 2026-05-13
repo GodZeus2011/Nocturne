@@ -54,3 +54,17 @@ This program translates raw timestamps (seconds) into musical positions (measure
     - Added duration logic to prevent "zero-length" notes during the snapping process.
 
 + **Meter Detection:** Detects time signature using correlation of onset strength. By comparing the patterns across different intervals, the function automatically chooses between standard time and waltz meters. 
+
+## Stage 4: Pitch Tracking
+
+This stage is the core of Nocturne, It converts the raw audio signals into musical notes stored in python objects.
+
++ **Pitch Tracking:** Integrated the **CREPE** (Convolutional Representation for Pitch Estimation) model. By analyzing the audio at a 100 samples per second, the system creates a detailed trascription from raw audio to musical notes.
+
++ **MIDI Mapping:** The main musical conversion.
+    - Formula: $f_{MIDI} = 69 + 12 \times \log_2(\frac{Hz}{440})$
+    - This allows the software to map frequencies to the 88 keys of a standard piano.
+
++ **Smoothing:** The AI pitch tracking is naturally jittery. I implemented a **Median Filter** (`scipy.signal.medfilt`) to smooth out errors.
+
++ **Note Slicer:** Coded an algorithm to slice a stream of continuous pitch data into discrete musical events. It identifies notes based on pitch stability and duration thresholds.
