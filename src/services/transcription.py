@@ -1,18 +1,19 @@
 import librosa
 import numpy as np
+import torch
+import torchcrepe 
 from pathlib import Path
 from src.utils.logger import logger
-import torch
-import torchcrepe  
+from scipy.signal import medfilt
+from src.core.models import Note
 
 class TranscriptionService:
     def get_tempo_data(self, stems_folder):
         DRUMS_PATH = stems_folder / "drums.wav"
         OTHER_PATH = stems_folder / "other.wav"
-
         TEMPO_PATH = DRUMS_PATH if DRUMS_PATH.exists() else OTHER_PATH
 
-        audio, sr = librosa.load(TEMPO_PATH, sr=None)
+        audio, sr = librosa.load(TEMPO_PATH, sr=None, mono=True)
         tempo, beat_frames = librosa.beat.beat_track(y=audio, sr=sr)
         beat_times = librosa.frames_to_time(beat_frames, sr=sr)
 
@@ -30,8 +31,7 @@ class TranscriptionService:
             if len(beat_times) > 0 and abs(beat_times[0]) < 0.2:
                 beat_times[0] = 0.0
         
-        logger.info(f"Detected Tempo: {final_bpm} BPM")
-
+        logger.info(f"Detected Tempo: {final_bpm:.2f} BPM")
         time_sig = self.detect_meter(audio, sr, beat_times)
         logger.info(f"Detected Meter: {time_sig}")
 
@@ -44,14 +44,11 @@ class TranscriptionService:
     def time2ticks(self, timestamp, beat_times):
         beat_index = np.searchsorted(beat_times, timestamp, side='right') - 1
 
-        if beat_index < 0:
-            beat_index = 0
-        if beat_index >= len(beat_times) - 1:
-            beat_index = len(beat_times) - 2
+        if beat_index < 0: beat_index = 0
+        if beat_index >= len(beat_times) - 1: beat_index = len(beat_times) - 2
 
         start = beat_times[beat_index]
         end = beat_times[beat_index + 1]
-
         interval_duration = max(end - start, 0.001) 
         progress = (timestamp - start) / interval_duration
 
@@ -61,8 +58,7 @@ class TranscriptionService:
         return int(total_ticks)
     
     def quantize(self, ticks, resolution=120):
-        snapped = round(ticks/resolution) * resolution
-        return snapped
+        return int(round(ticks / resolution) * resolution)
     
     def quantize_note(self, start_ticks, end_ticks):
         q_start = self.quantize(start_ticks)
@@ -70,76 +66,90 @@ class TranscriptionService:
 
         if q_end <= q_start:
             q_end = q_start + 120
-        
+
         return q_start, q_end
     
     def detect_meter(self, audio, sr, beat_times):
         try:
             onset_env = librosa.onset.onset_strength(y=audio, sr=sr)
-
-            beat_frames = librosa.time_to_frames(beat_times, sr=sr)
-
-            beat_frames = np.clip(beat_frames, 0, len(onset_env) - 1)
+            beat_frames = np.clip(librosa.time_to_frames(beat_times, sr=sr), 0, len(onset_env) - 1)
             beat_strengths = onset_env[beat_frames]
 
             score_4_4 = np.mean(beat_strengths[::4])
             score_3_4 = np.mean(beat_strengths[::3])
-
-            logger.info(f"Meter Analysis -> 4/4 Score: {score_4_4:.2f}, 3/4 Score: {score_3_4:.2f}")
 
             if score_3_4 > score_4_4 * 1.2:
                 return "3/4"
             return "4/4"
         
         except Exception as e:
-            logger.warning(f"Meter detection failed, defaulting to 4/4. Error: {e}")
+            logger.warning(f"Meter detection failed: {e}")
             return "4/4"
     
     def _get_raw_pitches(self, audio_path, is_bass=False):
-        logger.info(f"Running AI Pitch Tracking on: {audio_path.name}")
+            audio, sr = librosa.load(audio_path, sr=16000, mono=True)
+            
+            audio = audio.astype(np.float32)
+            max_amp = np.max(np.abs(audio))
+            if max_amp > 0:
+                audio = audio / max_amp
 
-        audio, sr = librosa.load(audio_path, sr=16000)
-        
-        audio_tensor = torch.from_numpy(audio).unsqueeze(0)
-        
-        fmin = 30 if is_bass else 50
-        fmax = 300 if is_bass else 2000
+            audio_tensor = torch.from_numpy(audio).unsqueeze(0)
 
-        pitch, periodicity = torchcrepe.predict(
-            audio_tensor,
-            sample_rate=16000,
-            hop_length=160,
-            fmin=fmin,
-            fmax=fmax,
-            model='tiny',
-            device='cpu',
-            batch_size=2048,
-            return_periodicity=True
-        )
+            logger.info(f"AI is analyzing {audio_path.name}... (Wait 1-2 mins)")
 
-        return pitch.squeeze().numpy(), periodicity.squeeze().numpy()
-
-    @staticmethod
+            pitch, periodicity = torchcrepe.predict(
+                audio_tensor,
+                sample_rate=16000,
+                hop_length=160,
+                fmin=30 if is_bass else 50,
+                fmax=300 if is_bass else 2000,
+                model='tiny', 
+                device='cpu',
+                batch_size=512, 
+                return_periodicity=True
+            )
+            
+            return pitch.squeeze().numpy(), periodicity.squeeze().numpy()
 
     def _pitch_to_midi(self, hz):
-        if hz <= 0:
-            return 0
+        if hz <= 0: return 0
         midi_num = 12 * np.log2(hz / 440.0) + 69
+
         return int(round(midi_num))
 
     def _clean_pitch_data(self, pitches, periodicities):
         clean_midi = []
-
         for p, c in zip(pitches, periodicities):
-            if c < -5.0 or p <= 0:
+            is_silent = np.isinf(c) or np.isnan(c) or p <= 0
+            is_confident = False if is_silent else ((c < -5.0) if c < 0 else (c > 0.5))
+            
+            if not is_confident:
                 clean_midi.append(0)
             else:
                 midi = self._pitch_to_midi(p)
+                clean_midi.append(midi if 21 <= midi <= 108 else 0)
 
-                if 21 <= midi <= 108:
-                    clean_midi.append(midi)
-                else:
-                    clean_midi.append(0)
         return np.array(clean_midi)
+    
+    def _get_notes_from_sequence(self, midi_sequence):
+        smoothed_midi = medfilt(midi_sequence, kernel_size=5)
 
+        notes = []
+        current_pitch = 0
+        start_frame = 0
 
+        for i, pitch in enumerate(smoothed_midi):
+            if pitch != current_pitch:
+                if current_pitch != 0:
+                    duration = (i - start_frame) * 0.01 
+                    if duration > 0.05: 
+                        notes.append(Note(
+                            pitch=int(current_pitch),
+                            start=start_frame * 0.01,
+                            duration=duration
+                        ))
+                start_frame = i
+                current_pitch = pitch
+                
+        return notes
