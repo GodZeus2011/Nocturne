@@ -1,6 +1,6 @@
 import numpy as np
 from itertools import combinations
-from src.utils.logger import logger
+#from src.utils.logger import logger
 
 class HarmonyEngine:
     def __init__(self):
@@ -33,9 +33,52 @@ class HarmonyEngine:
         v_str = str(tuple(vector))
         return self.CHORD_DNA.get(v_str, "Unknown Cluster")
 
+    def find_chord_root(self, midi_notes):
+        if not midi_notes:
+            return None
+        
+        pitch_classes = list(set([p % 12 for p in midi_notes]))
+
+        if len(pitch_classes) == 1:
+            return pitch_classes[0]
+        
+        scores = {pc: 0 for pc in pitch_classes}
+
+        for n1 in pitch_classes:
+            for n2 in pitch_classes:
+                if n1 == n2: continue
+
+                interval = (n2 - n1) % 12
+
+                if interval == 7: 
+                    scores[n1] += 10
+                elif interval == 5: 
+                    scores[n2] += 8
+                elif interval == 4: 
+                    scores[n1] += 5
+                elif interval == 3: 
+                    scores[n1] += 2
+                elif interval == 9: 
+                    scores[n2] += 2
+        
+        root = max(scores, key=scores.get)
+        return root
+
 if __name__ == "__main__":
     engine = HarmonyEngine()
+    names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
-    c_maj = [60, 64, 67]
-    vec = engine.get_interval_vector(c_maj)
-    print(f"C Major Vector: {vec}")
+    test_chords = {
+        "C Major Triad": [60, 64, 67],           
+        "A Minor Triad": [57, 60, 64],           
+        "C Major (Inverted)": [64, 67, 72],      
+        "G Dominant 7th": [55, 59, 62, 65],     
+        "Power Chord": [48, 55],                
+        "Dissonant Cluster": [60, 61, 62],
+        "F Major 7th": [53, 57, 60, 64]
+    }
+
+    for description, notes in test_chords.items():
+        root_pc = engine.find_chord_root(notes)
+        root_name = names[root_pc]
+        print(f"{description.ljust(20)} | Notes: {notes} | Detected Root: {root_name}")
