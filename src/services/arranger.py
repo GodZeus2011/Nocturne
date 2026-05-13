@@ -1,9 +1,14 @@
 import numpy as np
 from itertools import combinations
-#from src.utils.logger import logger
+from src.utils.logger import logger
 
 class HarmonyEngine:
     def __init__(self):
+
+        self.MAJ_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
+        self.MIN_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
+        self.NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
         self.CHORD_VEC = {
             "(0, 0, 1, 1, 1, 0)": "Maj/Min Triad",
             "(0, 1, 2, 1, 1, 1)": "Maj 7th",
@@ -64,9 +69,43 @@ class HarmonyEngine:
         root = max(scores, key=scores.get)
         return root
 
+    def detect_key(self, notes):
+        
+        if not notes:
+            return "Unknown"
+
+        histogram = np.zeros(12)
+        for note in notes:
+            histogram[note.pitch % 12] += note.duration
+
+        if np.sum(histogram) > 0:
+            histogram = histogram / np.sum(histogram)
+        
+        best_key = ""
+        max_correlation = -1.1
+
+        for i in range(12):
+            major_test = np.roll(self.MAJ_PROFILE, i)
+            minor_test = np.roll(self.MIN_PROFILE, i)
+
+            corr_major = np.corrcoef(histogram, major_test)[0, 1]
+            corr_minor = np.corrcoef(histogram, minor_test)[0, 1]
+
+            if corr_major > max_correlation:
+                max_correlation = corr_major
+                best_key = f"{self.NOTE_NAMES[i]} Major"
+
+            if corr_minor > max_correlation:
+                max_correlation = corr_minor
+                best_key = f"{self.NOTE_NAMES[i]} Minor"
+        logger.info(f"Key Detection Complete: {best_key} (Confidence: {max_correlation:.2f})")
+        return best_key
+        
 if __name__ == "__main__":
     engine = HarmonyEngine()
     names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+    t = 0
 
     test_chords = {
         "C Major Triad": [60, 64, 67],           
@@ -75,7 +114,9 @@ if __name__ == "__main__":
         "G Dominant 7th": [55, 59, 62, 65],     
         "Power Chord": [48, 55],                
         "Dissonant Cluster": [60, 61, 62],
-        "F Major 7th": [53, 57, 60, 64]
+        "F Major 7th": [53, 57, 60, 64],
+        "C Major 9th": [60, 64, 67, 71, 74],
+        "C Minor 6 add 9": [(60 + t), (63 + t), (67 + t), (69 + t), (73 + t)]
     }
 
     for description, notes in test_chords.items():

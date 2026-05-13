@@ -7,6 +7,7 @@ from src.core.config import APP_NAME, VERSION, INTERIM_DIR
 from src.utils.logger import logger
 from src.services.separation import SeparationService
 from src.services.transcription import TranscriptionService
+from src.services.arranger import HarmonyEngine
 
 class NocturneAPI:
     def __init__(self):
@@ -16,6 +17,7 @@ class NocturneAPI:
         
         self.separation_service = SeparationService()
         self.transcription_service = TranscriptionService()
+        self.harmony_engine = HarmonyEngine()
 
     def set_window(self, window):
         self._window = window
@@ -109,18 +111,10 @@ class NocturneAPI:
             self._update_ui("AI Transcription: Slicing into piano keys...", 90)
             final_notes = self.transcription_service._get_notes_from_sequence(midi_sequence)
 
-            for i, note in enumerate(final_notes[:10]):
-                logger.info(f"Note {i+1}: Pitch={note.pitch} | Start={note.start:.2f}s | Duration={note.duration:.2f}s")
+            self._update_ui("Analyzing Key...", 95)
+            detected_key = self.harmony_engine.detect_key(final_notes)
 
-            self.current_project["notes"] = final_notes
-            logger.info(f"Transcription Complete: Found {len(final_notes)} notes.")
-
-            if len(final_notes) > 0:
-                first = final_notes[0]
-                logger.info(f"Sample Note: Pitch {first.pitch} at {first.start:.2f}s")
-                self._update_ui(f"Success! Found {len(final_notes)} notes.", 100)
-            else:
-                self._update_ui("Process complete, but no notes were detected.", 100)
+            self.current_project["key"] = detected_key
 
         except Exception as e:
             logger.error(f"Pipeline Error: {e}")
