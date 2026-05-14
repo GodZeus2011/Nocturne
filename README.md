@@ -45,6 +45,8 @@ Transform raw, mixed audio into clean, separated files ready for transcription.
 
 This program translates raw timestamps (seconds) into musical positions (measures/beats), allowing for quantization.
 
+### Implementations:
+
 + **Dynamic Beat Tracking:** Uses `Librosa` to analyze onset envelopes and transients. The system has a prioritized fallback logic (Drums -> Other) to ensure a stable tempo is found even in acoustic or vocal-heavy tracks.
 
 + **Tempo Mapping:** Nocturne builds a local tempo map using linear interpolation between beats. This allows the program to follow "Human Tempo" altering the grid to stay in sync with the performer.
@@ -59,6 +61,8 @@ This program translates raw timestamps (seconds) into musical positions (measure
 
 This stage is the core of Nocturne, It converts the raw audio signals into musical notes stored in python objects.
 
+### Implementations:
+
 + **Pitch Tracking:** Integrated the **CREPE** (Convolutional Representation for Pitch Estimation) model. By analyzing the audio at a 100 samples per second, the system creates a detailed trascription from raw audio to musical notes.
 
 + **MIDI Mapping:** The main musical conversion.
@@ -68,3 +72,18 @@ This stage is the core of Nocturne, It converts the raw audio signals into music
 + **Smoothing:** The AI pitch tracking is naturally jittery. I implemented a **Median Filter** (`scipy.signal.medfilt`) to smooth out errors.
 
 + **Note Slicer:** Coded an algorithm to slice a stream of continuous pitch data into discrete musical events. It identifies notes based on pitch stability and duration thresholds.
+
+## Stage 5: Harmony Engine
+
+This stage uses music theory to analyze the relation between transcribed notes, identifying chords, and the tone.
+
+### Implementations:
+
++ **Interval Vectors:** Implemented an analysis tool that calculates the interval profile of any note cluster. By counting the 6 interval classes, the system can mathematically identify a chord (e.g., Major, Minor, or Dominant).
+
++ **Root Finder (Parncutt’s Algorithm):** Used Parncutt's algorithm to create a weighting system that assigns points to notes based on interval stability. This allows the system to identify the root of a chord even if its played in an inverted form.
+
++ **Key Detection:** Integrated the Krumhansl-Schmuckler (K-S) algorithm to detect the song's global key. This algorithm uses duration weighted pitch histograms compared against 24 Major/Minor key profiles. `MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]`
+`MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]`
+
++ **Chord Labeling** Translates Notes using detected Root and Interval Vector into human-readable strings (e.g., "Am7", "G Major").

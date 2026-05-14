@@ -98,12 +98,9 @@ class NocturneAPI:
             logger.info(f"Rhythm: {tempo_data['bpm']:.2f} BPM | {tempo_data['time_signature']}")
 
             self._update_ui("AI Transcription: Extracting melody...", 60)
-            melody_wav = stems_path / "vocals.wav"
+            melody_wav = stems_path / "bass.wav"
 
             pitches, confidence = self.transcription_service._get_raw_pitches(melody_wav, is_bass=False)
-
-            max_conf = np.max(confidence)
-            logger.info(f"AI Pitch Tracking Peak Confidence: {max_conf:.2f}")
 
             self._update_ui("AI Transcription: Cleaning notes...", 80)
             midi_sequence = self.transcription_service._clean_pitch_data(pitches, confidence)
@@ -115,6 +112,14 @@ class NocturneAPI:
             detected_key = self.harmony_engine.detect_key(final_notes)
 
             self.current_project["key"] = detected_key
+            logger.info(f"TONAL CENTER: {detected_key}")
+
+            if len(final_notes) >= 3:
+                test_cluster = [n.pitch for n in final_notes[:4]]
+                chord_name = self.harmony_engine.get_chord_label(test_cluster)
+                logger.info(f"FIRST CHORD IDENTIFIED: {chord_name}")
+            
+            self._update_ui(f"Success! Key: {detected_key}", 100)
 
         except Exception as e:
             logger.error(f"Pipeline Error: {e}")

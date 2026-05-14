@@ -1,6 +1,6 @@
 import numpy as np
 from itertools import combinations
-from src.utils.logger import logger
+#from src.utils.logger import logger
 
 class HarmonyEngine:
     def __init__(self):
@@ -10,9 +10,11 @@ class HarmonyEngine:
         self.NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
         self.CHORD_VEC = {
-            "(0, 0, 1, 1, 1, 0)": "Maj/Min Triad",
+            "(0, 0, 1, 1, 1, 0)": "Triad", 
             "(0, 1, 2, 1, 1, 1)": "Maj 7th",
-            "(1, 0, 1, 1, 1, 2)": "Dim"
+            "(0, 2, 1, 1, 2, 0)": "Min 7th",
+            "(0, 1, 1, 1, 1, 2)": "Dom 7th",
+            "(1, 0, 1, 1, 1, 2)": "Diminished"
         }
 
     def get_interval_vector(self, midi_notes):
@@ -33,10 +35,6 @@ class HarmonyEngine:
                 vector[diff - 1] += 1
 
         return vector
-    
-    def identify_chord_type(self, vector):
-        v_str = str(tuple(vector))
-        return self.CHORD_DNA.get(v_str, "Unknown Cluster")
 
     def find_chord_root(self, midi_notes):
         if not midi_notes:
@@ -98,14 +96,31 @@ class HarmonyEngine:
             if corr_minor > max_correlation:
                 max_correlation = corr_minor
                 best_key = f"{self.NOTE_NAMES[i]} Minor"
-        logger.info(f"Key Detection Complete: {best_key} (Confidence: {max_correlation:.2f})")
         return best_key
+    
+    def get_chord_label(self, midi_notes):
+        if len(midi_notes) < 2:
+            return "N/A"
+        
+        root_pc = self.find_chord_root(midi_notes)
+        vector = self.get_interval_vector(midi_notes)
+
+        v_str = str(tuple(vector))
+        quality = self.CHORD_VEC.get(v_str, "Cluster")
+
+        if quality == "Triad":
+            pitch_classes = [(p % 12) for p in midi_notes]
+            if (root_pc + 4) % 12 in pitch_classes:
+                quality = "Major"
+            else:
+                quality = "Minor"
+        
+        root_name = self.NOTE_NAMES[root_pc]
+        return f"{root_name} {quality}"
+
         
 if __name__ == "__main__":
     engine = HarmonyEngine()
-    names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
-
-    t = 0
 
     test_chords = {
         "C Major Triad": [60, 64, 67],           
@@ -113,13 +128,17 @@ if __name__ == "__main__":
         "C Major (Inverted)": [64, 67, 72],      
         "G Dominant 7th": [55, 59, 62, 65],     
         "Power Chord": [48, 55],                
-        "Dissonant Cluster": [60, 61, 62],
         "F Major 7th": [53, 57, 60, 64],
-        "C Major 9th": [60, 64, 67, 71, 74],
-        "C Minor 6 add 9": [(60 + t), (63 + t), (67 + t), (69 + t), (73 + t)]
     }
 
-    for description, notes in test_chords.items():
+    print("\n--- HARMONY ENGINE TEST ---")
+    print(f"{'Description'.ljust(20)} | {'Root'.ljust(5)} | {'Vector'.ljust(18)} | {'Label'}")
+    print("-" * 65)
+
+    for desc, notes, in test_chords.items():
         root_pc = engine.find_chord_root(notes)
-        root_name = names[root_pc]
-        print(f"{description.ljust(20)} | Notes: {notes} | Detected Root: {root_name}")
+        root_name = engine.NOTE_NAMES[root_pc]
+        vector = engine.get_interval_vector(notes)
+        label = engine.get_chord_label(notes)
+
+        print(f"{desc.ljust(20)} | {root_name.ljust(5)} | {str(vector).ljust(18)} | {label}")
