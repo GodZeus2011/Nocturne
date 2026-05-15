@@ -87,30 +87,37 @@ class TranscriptionService:
             return "4/4"
     
     def _get_raw_pitches(self, audio_path, is_bass=False):
-            audio, sr = librosa.load(audio_path, sr=16000, mono=True)
+        audio, sr = librosa.load(audio_path, sr=16000, mono=True)
+                
+        audio = audio.astype(np.float32)
+        max_amp = np.max(np.abs(audio))
+        if max_amp > 0:
+            audio = audio / max_amp
+
+        audio_tensor = torch.from_numpy(audio.copy()).unsqueeze(0)
+
+        model_size = 'tiny'
+
+        hop = 320 if is_bass else 160
+
+        fmin = 40 if is_bass else 50
+        fmax = 300 if is_bass else 2000
+
+        logger.info(f"AI ({model_size}) is analyzing {audio_path.name}...")
+
+        pitch, periodicity = torchcrepe.predict(
+            audio_tensor,
+            sample_rate=16000,
+            hop_length=hop,
+            fmin=fmin,
+            fmax=fmax,
+            model=model_size, 
+            device='cpu',
+            batch_size=1024, 
+            return_periodicity=True
+        )
             
-            audio = audio.astype(np.float32)
-            max_amp = np.max(np.abs(audio))
-            if max_amp > 0:
-                audio = audio / max_amp
-
-            audio_tensor = torch.from_numpy(audio).unsqueeze(0)
-
-            logger.info(f"AI is analyzing {audio_path.name}... (Wait 1-2 mins)")
-
-            pitch, periodicity = torchcrepe.predict(
-                audio_tensor,
-                sample_rate=16000,
-                hop_length=160,
-                fmin=30 if is_bass else 50,
-                fmax=300 if is_bass else 2000,
-                model='tiny', 
-                device='cpu',
-                batch_size=512, 
-                return_periodicity=True
-            )
-            
-            return pitch.squeeze().numpy(), periodicity.squeeze().numpy()
+        return pitch.squeeze().numpy(), periodicity.squeeze().numpy()
 
     def _pitch_to_midi(self, hz):
         if hz <= 0: return 0
@@ -118,12 +125,15 @@ class TranscriptionService:
 
         return int(round(midi_num))
 
-    def _clean_pitch_data(self, pitches, periodicities):
+    def _clean_pitch_data(self, pitches, periodicities, is_bass=False):
         clean_midi = []
+
+        threshold = -20.0 if is_bass else -5.0
+
         for p, c in zip(pitches, periodicities):
             is_silent = np.isinf(c) or np.isnan(c) or p <= 0
-            is_confident = False if is_silent else ((c < -5.0) if c < 0 else (c > 0.5))
-            
+            is_confident = False if is_silent else ((c < threshold) if c < 0 else (c > 0.5))
+
             if not is_confident:
                 clean_midi.append(0)
             else:
@@ -132,18 +142,20 @@ class TranscriptionService:
 
         return np.array(clean_midi)
     
-    def _get_notes_from_sequence(self, midi_sequence):
+    def _get_notes_from_sequence(self, midi_sequence, is_bass=False):
         smoothed_midi = medfilt(midi_sequence, kernel_size=5)
 
         notes = []
         current_pitch = 0
         start_frame = 0
 
+        min_duration = 0.02 if is_bass else 0.05
+
         for i, pitch in enumerate(smoothed_midi):
             if pitch != current_pitch:
                 if current_pitch != 0:
                     duration = (i - start_frame) * 0.01 
-                    if duration > 0.05: 
+                    if duration > min_duration:
                         notes.append(Note(
                             pitch=int(current_pitch),
                             start=start_frame * 0.01,
@@ -151,5 +163,4 @@ class TranscriptionService:
                         ))
                 start_frame = i
                 current_pitch = pitch
-                
         return notes

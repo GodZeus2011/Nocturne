@@ -3,11 +3,12 @@ from typing import List, Optional
 
 @dataclass
 class Note:
-    pitch: int          
-    start: float        
-    duration: float     
-    velocity: int = 100 
-    hand: str = "auto"  
+    pitch: int
+    start: float
+    duration: float
+    velocity: int = 100
+    hand: str = "auto"
+    source: str = "unknown"
 
     @property
     def end(self) -> float:

@@ -7,7 +7,7 @@ from src.core.config import APP_NAME, VERSION, INTERIM_DIR
 from src.utils.logger import logger
 from src.services.separation import SeparationService
 from src.services.transcription import TranscriptionService
-from src.services.arranger import HarmonyEngine
+from src.services.arranger import HarmonyEngine, PianoArranger
 
 class NocturneAPI:
     def __init__(self):
@@ -18,6 +18,7 @@ class NocturneAPI:
         self.separation_service = SeparationService()
         self.transcription_service = TranscriptionService()
         self.harmony_engine = HarmonyEngine()
+        self.arranger = PianoArranger()
 
     def set_window(self, window):
         self._window = window
@@ -86,40 +87,58 @@ class NocturneAPI:
         try:
             workspace = self.current_project["workspace"]
 
-            self._update_ui("AI Separation: unmixing audio...", 10)
-            stems_path = self.separation_service.run_separation(
-                file_path, workspace, progress_callback=self._update_ui
-            )
+            self._update_ui("AI Stem Separation...", 10)
+            stems_path = self.separation_service.run_separation(file_path, workspace, self._update_ui)
 
-            self._update_ui("Analyzing rhythm and tempo...", 45)
+            self._update_ui("Analyzing Rhythm...", 30)
             tempo_data = self.transcription_service.get_tempo_data(stems_path)
-
             self.current_project.update(tempo_data)
-            logger.info(f"Rhythm: {tempo_data['bpm']:.2f} BPM | {tempo_data['time_signature']}")
 
-            self._update_ui("AI Transcription: Extracting melody...", 60)
-            melody_wav = stems_path / "bass.wav"
+            all_transcribed_notes = []
 
-            pitches, confidence = self.transcription_service._get_raw_pitches(melody_wav, is_bass=False)
+            stems_to_process = [
+                {"file": "bass.wav", "source": "bass", "is_bass": True},
+                {"file": "vocals.wav", "source": "vocal", "is_bass": False}
+            ]
 
-            self._update_ui("AI Transcription: Cleaning notes...", 80)
-            midi_sequence = self.transcription_service._clean_pitch_data(pitches, confidence)
+            for i, stem in enumerate(stems_to_process):
+                self._update_ui(f"Transcribing {stem['source']}...", 40 + (i * 20))
+                
+                path = stems_path / stem["file"]
+                if not path.exists(): continue
 
-            self._update_ui("AI Transcription: Slicing into piano keys...", 90)
-            final_notes = self.transcription_service._get_notes_from_sequence(midi_sequence)
+                pitches, conf = self.transcription_service._get_raw_pitches(path, is_bass=stem["is_bass"])
 
-            self._update_ui("Analyzing Key...", 95)
-            detected_key = self.harmony_engine.detect_key(final_notes)
+                max_conf = np.max(conf)
+                logger.info(f"DEBUG: Stem {stem['source']} | Max Confidence: {max_conf:.2f}")
 
-            self.current_project["key"] = detected_key
-            logger.info(f"TONAL CENTER: {detected_key}")
+                midi_seq = self.transcription_service._clean_pitch_data(pitches, conf, is_bass=stem["is_bass"])
+                
+                stem_notes = self.transcription_service._get_notes_from_sequence(midi_seq, is_bass=stem["is_bass"])
 
-            if len(final_notes) >= 3:
-                test_cluster = [n.pitch for n in final_notes[:4]]
-                chord_name = self.harmony_engine.get_chord_label(test_cluster)
-                logger.info(f"FIRST CHORD IDENTIFIED: {chord_name}")
+                logger.info(f"Stem {stem['source']} produced {len(stem_notes)} notes.")
+
+                for n in stem_notes:
+                    n.source = stem["source"]
+                
+                all_transcribed_notes.extend(stem_notes)
             
-            self._update_ui(f"Success! Key: {detected_key}", 100)
+            self._update_ui("Finalizing arrangement...", 90)
+
+            self.current_project["key"] = self.harmony_engine.detect_key(all_transcribed_notes)
+
+            final_notes = self.arranger.assign_hands(all_transcribed_notes)
+
+            final_notes = self.arranger.solve_physicality(final_notes)
+
+            self.current_project["notes"] = final_notes
+
+            lh_count = len([n for n in final_notes if n.hand == "left"])
+            rh_count = len([n for n in final_notes if n.hand == "right"])
+
+            logger.info(f"Arrangement Success! LH: {lh_count} notes | RH: {rh_count} notes")
+            self._update_ui(f"Success! Key: {self.current_project['key']}", 100)
+            
 
         except Exception as e:
             logger.error(f"Pipeline Error: {e}")

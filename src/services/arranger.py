@@ -1,6 +1,6 @@
 import numpy as np
 from itertools import combinations
-#from src.utils.logger import logger
+from src.utils.logger import logger
 
 class HarmonyEngine:
     def __init__(self):
@@ -118,7 +118,77 @@ class HarmonyEngine:
         root_name = self.NOTE_NAMES[root_pc]
         return f"{root_name} {quality}"
 
+class PianoArranger:
+    def __init__(self):
+        self.PIVOT_PITCH = 55
+
+    def assign_hands(self, notes):
+        for note in notes:
+            if note.source == "bass":
+                note.hand = "left"
+            elif note.source == "vocal":
+                note.hand = "right"
+            else:
+                note.hand = "left" if note.pitch < 55 else "right"
+
+        logger.info(f"Hand Assignment Complete for {len(notes)} notes.")
+        return notes
+
+    def solve_physicality(self, notes):
+        logger.info("Solving physicality constraints...")
         
+        clean_notes = self._merge_notes(notes)
+        
+        final_notes = self._enforce_span(clean_notes)
+        
+        final_notes.sort(key=lambda x: x.start)
+        
+        return final_notes
+
+    def _merge_notes(self, notes):
+        if not notes: return []
+        
+        notes.sort(key=lambda x: (x.pitch, x.start))
+        
+        merged = []
+
+        if notes:
+            current = notes[0]
+            for next_note in notes[1:]:
+                if next_note.pitch == current.pitch and next_note.start <= current.end + 0.05:
+                    new_end = max(current.end, next_note.end)
+                    current.duration = new_end - current.start
+                else:
+                    merged.append(current)
+                    current = next_note
+            merged.append(current)
+            
+        return merged
+
+    def _enforce_span(self, notes):
+        
+        notes.sort(key=lambda x: x.start)
+
+        for i, note in enumerate(notes):
+            if note.hand != "right": continue
+            
+            simultaneous_rh_notes = [note]
+            for j in range(i + 1, len(notes)):
+                if notes[j].start > note.start + 0.05: break 
+                if notes[j].hand == "right":
+                    simultaneous_rh_notes.append(notes[j])
+
+            if len(simultaneous_rh_notes) > 1:
+                pitches = [n.pitch for n in simultaneous_rh_notes]
+                hi, lo = max(pitches), min(pitches)
+
+                if (hi - lo) > 12:
+                    for n in simultaneous_rh_notes:
+                        if n.pitch == lo:
+                            n.hand = "left"
+        return notes
+                            
+
 if __name__ == "__main__":
     engine = HarmonyEngine()
 
