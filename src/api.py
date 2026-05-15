@@ -4,6 +4,7 @@ import time
 import numpy as np
 from pathlib import Path
 from src.core.config import APP_NAME, VERSION, INTERIM_DIR
+from src.core.models import Arrangement
 from src.utils.logger import logger
 from src.services.separation import SeparationService
 from src.services.transcription import TranscriptionService
@@ -103,29 +104,22 @@ class NocturneAPI:
 
             for i, stem in enumerate(stems_to_process):
                 self._update_ui(f"Transcribing {stem['source']}...", 40 + (i * 20))
-                
                 path = stems_path / stem["file"]
                 if not path.exists(): continue
 
                 pitches, conf = self.transcription_service._get_raw_pitches(path, is_bass=stem["is_bass"])
 
-                max_conf = np.max(conf)
-                logger.info(f"DEBUG: Stem {stem['source']} | Max Confidence: {max_conf:.2f}")
-
                 midi_seq = self.transcription_service._clean_pitch_data(pitches, conf, is_bass=stem["is_bass"])
-                
-                stem_notes = self.transcription_service._get_notes_from_sequence(
-                    midi_seq, conf, is_bass=stem["is_bass"]
-                )
 
-                logger.info(f"Stem {stem['source']} produced {len(stem_notes)} notes.")
+                stem_notes = self.transcription_service._get_notes_from_sequence(midi_seq, conf, is_bass=stem["is_bass"])
 
+                logger.info(f"Stem '{stem['source']}' produced {len(stem_notes)} notes.")
                 for n in stem_notes:
                     n.source = stem["source"]
                 
                 all_transcribed_notes.extend(stem_notes)
             
-            self._update_ui("Finalizing arrangement...", 90)
+            self._update_ui("Finalizing arrangement...", 85)
 
             self.current_project["key"] = self.harmony_engine.detect_key(all_transcribed_notes)
 
@@ -146,9 +140,23 @@ class NocturneAPI:
 
             final_notes = self.arranger.apply_density(final_notes, level="normal")
 
-            self.current_project["notes"] = final_notes
+            final_notes = self.arranger.apply_styles(final_notes, style="pop")
 
-            logger.info("--- MUSICAL AUDIT (First 20 Events) ---")
+            self._update_ui("Adding sustain pedal...", 95)
+
+            pedal_data = self.arranger.generate_sustain_pedal(self.current_project["beat_times"])
+
+            final_arrangement = Arrangement(
+                notes=final_notes,
+                tempo=self.current_project["bpm"],
+                time_signature=self.current_project["time_signature"],
+                key=self.current_project["key"],
+                pedal_events=pedal_data
+            )
+
+            self.current_project["arrangement"] = final_arrangement
+
+            logger.info("--- MUSICAL AUDIT (First 500 Events) ---")
             header = f"{'TIME'.ljust(6)} | {'TICKS'.ljust(6)} | {'HAND'.ljust(4)} | {'NOTE'.ljust(5)} | {'VEL'.ljust(4)} | {'SOURCE'}"
             logger.info(header)
             logger.info("-" * len(header))
@@ -159,8 +167,9 @@ class NocturneAPI:
                 logger.info(f"{str(round(n.start, 2)).ljust(6)} | {str(n.quantized_start).ljust(6)} | {hand_label.ljust(4)} | {note_name.ljust(5)} | {str(n.velocity).ljust(4)} | {n.source}")
             
             logger.info("-" * len(header))
+            logger.info(f"Final Arrangement Created: {len(final_notes)} notes, {len(pedal_data)} pedal events.")
 
-            self._update_ui(f"Success! Key: {self.current_project['key']}", 100)
+            self._update_ui(f"Success! Arrangement Complete (Key: {final_arrangement.key})", 100)
 
         except Exception as e:
             logger.error(f"Pipeline Error: {e}")

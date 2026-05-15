@@ -28,4 +28,6 @@ class Arrangement:
     notes: List[Note]
     tempo: float                
     time_signature: str = "4/4"
-    key: str = "C"               
+    key: str = "C"        
+    pedal_events: List[tuple] = field(default_factory=list) 
+       

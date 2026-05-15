@@ -327,6 +327,64 @@ class PianoArranger:
         note = names[midi_number % 12]
         return f"{note}{octave}"
 
+    def generate_sustain_pedal(self, beat_times):
+        pedal_events = []
+
+        TICKS_PER_BEAT = 480
+
+        for i in range(0, len(beat_times), 4):
+            measure_start_tick = 1 * TICKS_PER_BEAT
+
+            if measure_start_tick > 0:
+                pedal_events.append((measure_start_tick - 20, 0))
+
+            pedal_events.append((measure_start_tick, 127))
+        
+        logger.info(f"Generated {len(pedal_events)} sustain pedal events.")
+        return pedal_events
+
+    def apply_styles(self, notes, style="pop"):
+        if style == "normal" or not notes:
+            return notes
+        
+        styled_notes = []
+
+        for n in notes:
+            if n.hand == "left":
+                if style == "pop":
+
+                    if n.quantized_duration > 480:
+                        n1 = copy.copy(n)
+                        n1.quantized_duration = 480 
+                        styled_notes.append(n1)
+
+                        if n.quantized_duration > 960:
+                            n2 = copy.copy(n)
+                            n2.quantized_start += 960
+                            n2.quantized_duration = 480
+                            n2.velocity = int(n.velocity * 0.8) 
+                            styled_notes.append(n2)
+                    else:
+                        styled_notes.append(n)
+
+                elif style == "jazz":
+                    styled_notes.append(n)
+                    
+                    jazz_tension = copy.copy(n)
+                    jazz_tension.pitch += 14 
+                    jazz_tension.velocity = int(n.velocity * 0.7) 
+
+                    if jazz_tension.pitch < 72:
+                        styled_notes.append(jazz_tension)
+                else:
+                    styled_notes.append(n)
+            else:
+                styled_notes.append(n)
+        
+        logger.info(f"Style Policy Applied: {style.upper()}")
+        return styled_notes
+
+
 if __name__ == "__main__":
     engine = HarmonyEngine()
 
