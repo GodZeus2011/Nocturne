@@ -109,4 +109,16 @@ Converts AI generated data into a physically playable performance. It enforces c
     - **Normal:** Default transcription.
     - **Hard:** Difficult arrangement with the melody doubled.
 
+## Stage 7: Final Arrangment
+
+This is the Final step where the arrangement is brought together.
+
+### Implementations:
+
++ **Sustain Pedal:** Created a MIDI generator that mimics a sustain pedal.
+
++ **Pop Style:** Adds rhythmic comping for the Left Hand.
+
++ **Jazz Style:** Automatically adds harmonic blues to detected chords.
+
 
