@@ -142,7 +142,7 @@ class TranscriptionService:
 
         return np.array(clean_midi)
     
-    def _get_notes_from_sequence(self, midi_sequence, is_bass=False):
+    def _get_notes_from_sequence(self, midi_sequence, confidence_sequence, is_bass=False):
         smoothed_midi = medfilt(midi_sequence, kernel_size=5)
 
         notes = []
@@ -156,10 +156,14 @@ class TranscriptionService:
                 if current_pitch != 0:
                     duration = (i - start_frame) * 0.01 
                     if duration > min_duration:
+                        note_conf = np.mean(confidence_sequence[start_frame:i])
+                        velocity = int(40 + (max(0, note_conf) * 70))
+                        
                         notes.append(Note(
                             pitch=int(current_pitch),
                             start=start_frame * 0.01,
-                            duration=duration
+                            duration=duration,
+                            velocity=min(velocity, 127) 
                         ))
                 start_frame = i
                 current_pitch = pitch

@@ -124,6 +124,34 @@ class PianoArranger:
     def __init__(self):
         self.PIVOT_PITCH = 55
 
+    def quantize_notes(self, notes, transcription_service, beat_times):
+        for n in notes:
+            start_ticks = transcription_service.time2ticks(n.start, beat_times)
+            end_ticks = transcription_service.time2ticks(n.end, beat_times)
+
+            q_start, q_end = transcription_service.quantize_note(start_ticks, end_ticks)
+
+            n.quantized_start = q_start 
+            n.quantized_duration = q_end - q_start
+            
+        return notes
+
+    def resolve_collisions(self, notes):
+        buckets = defaultdict(list)
+        for n in notes:
+            buckets[n.quantized_start].append(n)
+            
+        final_notes = []
+        for t in sorted(buckets.keys()):
+            chord = buckets[t]
+            rh_pitches = [n.pitch for n in chord if n.hand == "right"]
+            
+            for n in chord:
+                if n.hand == "left" and n.pitch in rh_pitches:
+                    continue 
+                final_notes.append(n)
+        return final_notes
+
     def assign_hands(self, notes):
         for note in notes:
             if note.source == "bass":
@@ -190,6 +218,17 @@ class PianoArranger:
                             n.hand = "left"
         return notes
                             
+    def _enforce_range(self, notes):
+        for n in notes:
+            if n.pitch < 21:
+                n.pitch += 12
+            elif n.pitch > 108:
+                n.pitch -= 12
+            if n.hand == "left" and n.pitch < 28:
+                n.pitch += 12
+                
+        return notes
+
     def optimize_voice_leading(self, notes):
         if not notes:
             return []
@@ -281,6 +320,12 @@ class PianoArranger:
                             
         logger.info(f"Density applied: {level.upper()} mode ({len(final_notes)} notes)")
         return final_notes
+
+    def midi_to_name(self, midi_number):
+        names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+        octave = (midi_number // 12) - 1
+        note = names[midi_number % 12]
+        return f"{note}{octave}"
 
 if __name__ == "__main__":
     engine = HarmonyEngine()

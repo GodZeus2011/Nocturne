@@ -114,7 +114,9 @@ class NocturneAPI:
 
                 midi_seq = self.transcription_service._clean_pitch_data(pitches, conf, is_bass=stem["is_bass"])
                 
-                stem_notes = self.transcription_service._get_notes_from_sequence(midi_seq, is_bass=stem["is_bass"])
+                stem_notes = self.transcription_service._get_notes_from_sequence(
+                    midi_seq, conf, is_bass=stem["is_bass"]
+                )
 
                 logger.info(f"Stem {stem['source']} produced {len(stem_notes)} notes.")
 
@@ -127,22 +129,37 @@ class NocturneAPI:
 
             self.current_project["key"] = self.harmony_engine.detect_key(all_transcribed_notes)
 
-            final_notes = self.arranger.assign_hands(all_transcribed_notes)
+            final_notes = self.arranger.quantize_notes(
+                all_transcribed_notes, 
+                self.transcription_service, 
+                self.current_project["beat_times"]
+            )
 
+            final_notes = self.arranger.assign_hands(final_notes)
             final_notes = self.arranger.solve_physicality(final_notes)
 
-            final_notes = self.arranger.optimize_voice_leading(final_notes)
+            final_notes = self.arranger.resolve_collisions(final_notes)
 
             final_notes = self.arranger.optimize_voice_leading(final_notes)
 
-            final_notes = self.arranger.apply_density(final_notes, level="hard")
+            final_notes = self.arranger._enforce_range(final_notes)
+
+            final_notes = self.arranger.apply_density(final_notes, level="normal")
 
             self.current_project["notes"] = final_notes
 
-            lh_count = len([n for n in final_notes if n.hand == "left"])
-            rh_count = len([n for n in final_notes if n.hand == "right"])
+            logger.info("--- MUSICAL AUDIT (First 20 Events) ---")
+            header = f"{'TIME'.ljust(6)} | {'TICKS'.ljust(6)} | {'HAND'.ljust(4)} | {'NOTE'.ljust(5)} | {'VEL'.ljust(4)} | {'SOURCE'}"
+            logger.info(header)
+            logger.info("-" * len(header))
+            
+            for n in final_notes[:500]:
+                note_name = self.arranger.midi_to_name(n.pitch)
+                hand_label = "LH" if n.hand == "left" else "RH"
+                logger.info(f"{str(round(n.start, 2)).ljust(6)} | {str(n.quantized_start).ljust(6)} | {hand_label.ljust(4)} | {note_name.ljust(5)} | {str(n.velocity).ljust(4)} | {n.source}")
+            
+            logger.info("-" * len(header))
 
-            logger.info(f"Arrangement Success! LH: {lh_count} notes | RH: {rh_count} notes")
             self._update_ui(f"Success! Key: {self.current_project['key']}", 100)
 
         except Exception as e:

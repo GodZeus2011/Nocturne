@@ -9,6 +9,8 @@ class Note:
     velocity: int = 100
     hand: str = "auto"
     source: str = "unknown"
+    quantized_start: int = 0      
+    quantized_duration: int = 0 
 
     @property
     def end(self) -> float:
