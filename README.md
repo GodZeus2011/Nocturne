@@ -87,3 +87,26 @@ This stage uses music theory to analyze the relation between transcribed notes, 
 `MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]`
 
 + **Chord Labeling** Translates Notes using detected Root and Interval Vector into human-readable strings (e.g., "Am7", "G Major").
+
+## Stage 6: Arranger
+
+Converts AI generated data into a physically playable performance. It enforces constraints to transform the raw notes into an arranged piece.
+
+### Implementations:
+
++ **Hand Assignment:**  Uses a logic system to assign notes to the Left Hand (LH) or Right Hand (RH).
+    - **Source:** Bass stem -> LH, Vocal stem -> RH.
+    - **Frequency:** Automatic fallback at MIDI 55 (G2) for "Other" instruments.
+
++ **Physical Constraint:** Enforces limits for playability.
+    - **Span:** Detects chords wider than 12 semitones and re-assigns the lowest notes to the opposite hand to prevent impossible reaches.
+    - **Merging:** Combines AI "stutters" into sustained notes using merging.
+
++ **Arrangement Optimizer:** A greedy algorithm that tracks the "center of gravity" for each hand. It shifts chords into the optimal octave to minimize large, unplayable jumps between notes.
+
++ **Density & Difficulty:** Provides scaling of the arrangement:
+    - **Easy:** Single-note reduction for beginners.
+    - **Normal:** Default transcription.
+    - **Hard:** Difficult arrangement with the melody doubled.
+
+
