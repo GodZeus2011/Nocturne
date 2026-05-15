@@ -1,6 +1,8 @@
 import numpy as np
+import copy
 from itertools import combinations
 from src.utils.logger import logger
+from collections import defaultdict
 
 class HarmonyEngine:
     def __init__(self):
@@ -188,6 +190,97 @@ class PianoArranger:
                             n.hand = "left"
         return notes
                             
+    def optimize_voice_leading(self, notes):
+        if not notes:
+            return []
+
+        buckets = defaultdict(list)
+        for n in notes:
+            time_key = round(n.start / 0.05) * 0.05
+            buckets[time_key].append(n)
+        
+        sorted_times = sorted(buckets.keys())
+
+        last_rh_center = 72  
+        last_lh_center = 48  
+
+        for t in sorted_times:
+            chord_notes = buckets[t]
+            rh_in_chord = [n for n in chord_notes if n.hand == "right"]
+            lh_in_chord = [n for n in chord_notes if n.hand == "left"]
+
+            if rh_in_chord:
+                curr_rh_center = sum(n.pitch for n in rh_in_chord) / len(rh_in_chord)
+                
+                shifts = [0, -12, 12]
+                best_shift = 0
+                min_dist = 999
+                
+                for s in shifts:
+                    dist = abs((curr_rh_center + s) - last_rh_center)
+                    if dist < min_dist:
+                        min_dist = dist
+                        best_shift = s
+                
+                for n in rh_in_chord:
+                    n.pitch += best_shift
+                
+                last_rh_center = curr_rh_center + best_shift
+
+            if lh_in_chord:
+                curr_lh_center = sum(n.pitch for n in lh_in_chord) / len(lh_in_chord)
+                
+                shifts = [0, -12, 12]
+                best_shift = 0
+                min_dist = 999
+                
+                for s in shifts:
+                    dist = abs((curr_lh_center + s) - last_lh_center)
+                    if dist < min_dist:
+                        min_dist = dist
+                        best_shift = s
+                
+                for n in lh_in_chord:
+                    n.pitch += best_shift
+                
+                last_lh_center = curr_lh_center + best_shift
+
+        logger.info("Voice Leading optimized: Hand jumps minimized.")
+        return notes
+
+    def apply_density(self, notes, level="normal"):
+
+        if level == "normal":
+            return notes
+
+        buckets = defaultdict(list)
+        for n in notes:
+            time_key = round(n.start / 0.05) * 0.05
+            buckets[time_key].append(n)
+        
+        final_notes = []
+        
+        for t in sorted(buckets.keys()):
+            chord = buckets[t]
+            rh = sorted([n for n in chord if n.hand == "right"], key=lambda x: x.pitch)
+            lh = sorted([n for n in chord if n.hand == "left"], key=lambda x: x.pitch)
+
+            if level == "easy":
+               
+                if rh: final_notes.append(rh[-1])
+                if lh: final_notes.append(lh[0])
+            
+            elif level == "hard":
+                for n in chord:
+                    final_notes.append(n)
+                    if rh and n == rh[-1]:
+                        octave_note = copy.copy(n)
+                        octave_note.pitch -= 12
+                        if octave_note.pitch >= 21:
+                            final_notes.append(octave_note)
+                            
+        logger.info(f"Density applied: {level.upper()} mode ({len(final_notes)} notes)")
+        return final_notes
 
 if __name__ == "__main__":
     engine = HarmonyEngine()

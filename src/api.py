@@ -131,6 +131,12 @@ class NocturneAPI:
 
             final_notes = self.arranger.solve_physicality(final_notes)
 
+            final_notes = self.arranger.optimize_voice_leading(final_notes)
+
+            final_notes = self.arranger.optimize_voice_leading(final_notes)
+
+            final_notes = self.arranger.apply_density(final_notes, level="hard")
+
             self.current_project["notes"] = final_notes
 
             lh_count = len([n for n in final_notes if n.hand == "left"])
@@ -138,7 +144,6 @@ class NocturneAPI:
 
             logger.info(f"Arrangement Success! LH: {lh_count} notes | RH: {rh_count} notes")
             self._update_ui(f"Success! Key: {self.current_project['key']}", 100)
-            
 
         except Exception as e:
             logger.error(f"Pipeline Error: {e}")
