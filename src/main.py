@@ -2,13 +2,12 @@ import webview
 import warnings
 from src.core.config import WEB_DIR, APP_NAME, DEBUG
 from src.api import NocturneAPI
-from src.core.models import Note
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
 def main():
     api = NocturneAPI()
-
+    
     window = webview.create_window(
         title=APP_NAME,
         url=str(WEB_DIR / "index.html"),
@@ -20,7 +19,6 @@ def main():
     )
 
     api.set_window(window)
-
     webview.start(debug=DEBUG)
 
 if __name__ == "__main__":

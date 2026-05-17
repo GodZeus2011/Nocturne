@@ -1,53 +1,105 @@
 
+
 class NocturneApp {
     constructor() {
-        this.api = window.nocturne; 
+        this.api = null;
+        this.waitForAPI();
+        
         this.currentArrangement = null;
         this.isProcessing = false;
         this.selectedAudioPath = null;
         
         this.initializeUI();
         this.attachEventListeners();
-        this.checkAppInfo();
+    }
+
+    waitForAPI() {
+        const onReady = () => {
+            if (window.pywebview && window.pywebview.api) {
+                this.api = window.pywebview.api;
+                console.log("Nocturne API connected");
+                this.addLog("Nocturne API connected", "success");
+                this.checkAppInfo();
+            } else {
+                console.error("window.pywebview.api not found");
+                this.addLog("ERROR: API not available", "error");
+            }
+        };
+        
+        window.addEventListener('pywebviewready', onReady);
+        
+        if (window.pywebview && window.pywebview.api) {
+            onReady();
+        }
     }
 
     initializeUI() {
-        console.log("Initializing Nocturne UI...");
-        
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
         
-        this.addLog("Nocturne Ready", "info");
+        this.addLog("Nocturne starting up...", "info");
     }
 
     attachEventListeners() {
-        document.getElementById('selectAudioBtn').addEventListener('click', () => this.selectAudio());
+        const selectBtn = document.getElementById('selectAudioBtn');
+        if (selectBtn) {
+            selectBtn.addEventListener('click', () => this.selectAudio());
+        }
         
-        document.getElementById('startProcessBtn').addEventListener('click', () => this.startProcessing());
+        const startBtn = document.getElementById('startProcessBtn');
+        if (startBtn) {
+            startBtn.addEventListener('click', () => this.startProcessing());
+        }
         
-        document.getElementById('exportMidiBtn').addEventListener('click', () => this.exportMidi());
+        const exportBtn = document.getElementById('exportMidiBtn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => this.exportMidi());
+        }
         
-        document.getElementById('clearLogBtn').addEventListener('click', () => this.clearLog());
+        const clearBtn = document.getElementById('clearLogBtn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => this.clearLog());
+        }
         
-        document.getElementById('difficultySelect').addEventListener('change', (e) => {
-            console.log("Difficulty changed to:", e.target.value);
-        });
+        const diffSelect = document.getElementById('difficultySelect');
+        if (diffSelect) {
+            diffSelect.addEventListener('change', (e) => {
+                console.log("Difficulty changed to:", e.target.value);
+                this.addLog(`Difficulty: ${e.target.value}`, "info");
+            });
+        }
         
-        document.getElementById('styleSelect').addEventListener('change', (e) => {
-            console.log("Style changed to:", e.target.value);
-        });
+        const styleSelect = document.getElementById('styleSelect');
+        if (styleSelect) {
+            styleSelect.addEventListener('change', (e) => {
+                console.log("Style changed to:", e.target.value);
+                this.addLog(`Style: ${e.target.value}`, "info");
+            });
+        }
     }
 
     async checkAppInfo() {
         try {
+            if (!this.api) {
+                console.warn("API not ready yet");
+                return;
+            }
+
             const info = await this.api.get_app_info();
             console.log("App Info:", info);
+            this.addLog(`Nocturne v${info.version} Ready`, "success");
         } catch (e) {
             console.error("Error getting app info:", e);
+            this.addLog(`Error: ${e.message}`, "error");
         }
     }
 
     async selectAudio() {
+        if (!this.api) {
+            this.addLog("ERROR: API not connected", "error");
+            return;
+        }
+
         try {
             this.addLog("Opening file dialog...", "info");
             const filePath = await this.api.select_audio();
@@ -55,18 +107,31 @@ class NocturneApp {
             if (filePath) {
                 this.selectedAudioPath = filePath;
                 const fileName = filePath.split('\\').pop().split('/').pop();
+                
                 document.getElementById('selectedFilePath').textContent = fileName;
                 document.getElementById('startProcessBtn').disabled = false;
-                this.addLog(`Selected: ${fileName}`, "info");
                 
-                document.querySelector('.canvas-overlay').classList.add('hidden');
+                this.addLog(`Selected: ${fileName}`, "success");
+                
+                const overlay = document.querySelector('.canvas-overlay');
+                if (overlay) {
+                    overlay.classList.add('hidden');
+                }
+            } else {
+                this.addLog("File selection cancelled", "info");
             }
         } catch (e) {
-            this.addLog(`Error selecting file: ${e.message}`, "error");
+            console.error("Select audio error:", e);
+            this.addLog(`Error: ${e.message || e}`, "error");
         }
     }
 
     async startProcessing() {
+        if (!this.api) {
+            this.addLog("ERROR: API not connected", "error");
+            return;
+        }
+
         if (!this.selectedAudioPath) {
             this.addLog("No audio file selected", "error");
             return;
@@ -83,48 +148,63 @@ class NocturneApp {
             
             this.pollForArrangement();
         } catch (e) {
-            this.addLog(`Processing error: ${e.message}`, "error");
+            console.error("Processing error:", e);
+            this.addLog(`Processing error: ${e.message || e}`, "error");
             this.isProcessing = false;
             document.getElementById('startProcessBtn').disabled = false;
         }
     }
 
     async pollForArrangement() {
-        const maxAttempts = 300; 
+        const maxAttempts = 600;
         let attempts = 0;
         
         const pollInterval = setInterval(async () => {
             attempts++;
             
             try {
-                const arrangement = await this.api.get_arrangement();
+                const status = await this.api.get_processing_status();
                 
-                if (arrangement) {
-                    this.currentArrangement = arrangement;
-                    this.isProcessing = false;
+                console.log(`[Poll ${attempts}] Status:`, status);
+                
+                this.updateProgress(status.message, status.progress);
+                
+                if (!status.is_processing) {
+                    console.log("Processing finished, requesting arrangement...");
                     
-                    this.updateStats(
-                        "Complete",
-                        arrangement.key,
-                        `${Math.round(arrangement.tempo)}`,
-                        `${arrangement.notes.length}`
-                    );
+                    const arrangement = await this.api.get_arrangement();
                     
-                    this.addLog("Processing complete!", "success");
-                    this.addLog(`Arrangement: ${arrangement.notes.length} notes`, "info");
-                    
-                    document.getElementById('exportMidiBtn').disabled = false;
-                    
-                    console.log("Arrangement received:", arrangement);
-                    
-                    clearInterval(pollInterval);
+                    if (arrangement) {
+                        this.currentArrangement = arrangement;
+                        this.isProcessing = false;
+                        
+                        this.updateStats(
+                            "Complete",
+                            arrangement.key,
+                            `${Math.round(arrangement.tempo)}`,
+                            `${arrangement.notes.length}`
+                        );
+                        
+                        this.addLog("Processing complete!", "success");
+                        this.addLog(`Arrangement: ${arrangement.notes.length} notes | Key: ${arrangement.key} | BPM: ${Math.round(arrangement.tempo)}`, "info");
+                        
+                        document.getElementById('exportMidiBtn').disabled = false;
+                        document.getElementById('startProcessBtn').disabled = false;
+                        
+                        console.log("Arrangement received:", arrangement);
+                        
+                        clearInterval(pollInterval);
+                    } else {
+                        console.warn("Processing finished but no arrangement available yet");
+                    }
                 }
             } catch (e) {
                 console.error("Poll error:", e);
+                this.addLog(`Poll error: ${e.message || e}`, "warning");
             }
             
             if (attempts >= maxAttempts) {
-                this.addLog("Processing timeout", "error");
+                this.addLog("Processing timeout (5 minutes)", "error");
                 this.isProcessing = false;
                 document.getElementById('startProcessBtn').disabled = false;
                 clearInterval(pollInterval);
@@ -133,6 +213,11 @@ class NocturneApp {
     }
 
     async exportMidi() {
+        if (!this.api) {
+            this.addLog("ERROR: API not connected", "error");
+            return;
+        }
+
         if (!this.currentArrangement) {
             this.addLog("No arrangement to export", "error");
             return;
@@ -144,32 +229,57 @@ class NocturneApp {
             const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
             const filename = `nocturne_${timestamp}.mid`;
             
-            await this.api.export_midi(filename);
+            const result = await this.api.export_midi(filename);
             
             this.addLog(`Exported: ${filename}`, "success");
+            console.log("Export result:", result);
         } catch (e) {
-            this.addLog(`Export error: ${e.message}`, "error");
+            console.error("Export error:", e);
+            this.addLog(`Export error: ${e.message || e}`, "error");
         }
     }
 
     updateProgress(message, percentage) {
-        document.getElementById('progressMessage').textContent = message;
-        document.getElementById('progressPercent').textContent = `${Math.round(percentage)}%`;
-        document.getElementById('progressBar').value = percentage;
+        const progressMsg = document.getElementById('progressMessage');
+        const progressPct = document.getElementById('progressPercent');
+        const progressBar = document.getElementById('progressBar');
+        
+        if (progressMsg) {
+            progressMsg.textContent = message;
+        }
+        
+        if (progressPct) {
+            progressPct.textContent = `${Math.round(percentage)}%`;
+        }
+        
+        if (progressBar) {
+            progressBar.style.width = `${percentage}%`;
+        }
     }
 
     updateStats(status, key, bpm, notes) {
-        document.getElementById('statStatus').textContent = status;
-        document.getElementById('statKey').textContent = key;
-        document.getElementById('statBPM').textContent = bpm;
-        document.getElementById('statNotes').textContent = notes;
+        const statusEl = document.getElementById('statStatus');
+        const keyEl = document.getElementById('statKey');
+        const bpmEl = document.getElementById('statBPM');
+        const notesEl = document.getElementById('statNotes');
+        
+        if (statusEl) statusEl.textContent = status;
+        if (keyEl) keyEl.textContent = key;
+        if (bpmEl) bpmEl.textContent = bpm;
+        if (notesEl) notesEl.textContent = notes;
     }
 
     addLog(message, level = "info") {
         const logDisplay = document.getElementById('logDisplay');
+        if (!logDisplay) return;
+        
         const entry = document.createElement('div');
         entry.className = `log-entry ${level}`;
-        entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+        
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString();
+        
+        entry.textContent = `[${timeStr}] ${message}`;
         
         logDisplay.appendChild(entry);
         logDisplay.scrollTop = logDisplay.scrollHeight;
@@ -181,13 +291,19 @@ class NocturneApp {
     }
 
     clearLog() {
-        document.getElementById('logDisplay').innerHTML = '';
+        const logDisplay = document.getElementById('logDisplay');
+        if (logDisplay) {
+            logDisplay.innerHTML = '';
+        }
         this.addLog("Log cleared", "info");
     }
 
     resizeCanvas() {
         const canvas = document.getElementById('pianoRollCanvas');
+        if (!canvas) return;
+        
         const container = canvas.parentElement;
+        if (!container) return;
         
         canvas.width = container.clientWidth;
         canvas.height = container.clientHeight;
@@ -198,6 +314,10 @@ document.addEventListener('DOMContentLoaded', () => {
     window.app = new NocturneApp();
     
     window.updateProgress = (message, progress) => {
-        window.app.updateProgress(message, progress);
+        if (window.app) {
+            window.app.updateProgress(message, progress);
+        } else {
+            console.warn("App not initialized yet");
+        }
     };
 });
