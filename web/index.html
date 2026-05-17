@@ -1,29 +1,109 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nocturne - Piano Arranger</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body style="background: #1a1a1a; color: white; font-family: sans-serif; padding: 50px;">
-    <h1>Nocturne</h1>
-    <p id="app-info">Connecting to backend...</p>
-    
-    <button onclick="selectAndProcess()" style="padding: 10px 20px; cursor: pointer;">
-        Select Audio & Process
-    </button>
-    
-    <p style="font-size: 0.8em; color: #888;">File: <span id="selected-path">None</span></p>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1 class="app-title">Nocturne</h1>
+                <p class="app-version">v0.1.0</p>
+            </div>
 
-    <div id="progress-container" style="width: 100%; background: #333; height: 20px; margin-top: 20px;">
-        <div id="progress-fill" style="width: 0%; background: #4CAF50; height: 100%; transition: width 0.3s;"></div>
+            <section class="sidebar-section">
+                <h2>File</h2>
+                <button id="selectAudioBtn" class="btn btn-primary">Select Audio</button>
+                <div class="file-path-container">
+                    <p class="file-path-label">Selected:</p>
+                    <p id="selectedFilePath" class="file-path">None</p>
+                </div>
+            </section>
+
+            <section class="sidebar-section">
+                <h2>Arrangement</h2>
+                
+                <div class="control-group">
+                    <label for="difficultySelect">Difficulty</label>
+                    <select id="difficultySelect" class="select-control">
+                        <option value="easy">Easy</option>
+                        <option value="normal" selected>Normal</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="styleSelect">Style</label>
+                    <select id="styleSelect" class="select-control">
+                        <option value="pop" selected>Pop</option>
+                        <option value="jazz">Jazz</option>
+                        <option value="classical">Classical</option>
+                    </select>
+                </div>
+            </section>
+
+            <section class="sidebar-section">
+                <h2>Live Stats</h2>
+                <div class="stats-grid">
+                    <div class="stat-badge">
+                        <span class="stat-label">Key</span>
+                        <span id="statKey" class="stat-value">—</span>
+                    </div>
+                    <div class="stat-badge">
+                        <span class="stat-label">BPM</span>
+                        <span id="statBPM" class="stat-value">—</span>
+                    </div>
+                    <div class="stat-badge">
+                        <span class="stat-label">Notes</span>
+                        <span id="statNotes" class="stat-value">—</span>
+                    </div>
+                    <div class="stat-badge">
+                        <span class="stat-label">Status</span>
+                        <span id="statStatus" class="stat-value">Ready</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="sidebar-section">
+                <button id="startProcessBtn" class="btn btn-success" disabled>Start Processing</button>
+                <button id="exportMidiBtn" class="btn btn-secondary" disabled>Export MIDI</button>
+            </section>
+        </aside>
+
+        <main class="main-content">
+            <div class="canvas-container">
+                <canvas id="pianoRollCanvas"></canvas>
+                <div class="canvas-overlay">
+                    <p id="canvasMessage">Load an audio file to begin</p>
+                </div>
+            </div>
+        </main>
+
+        <footer class="progress-footer">
+            <div class="progress-bar-container">
+                <div class="progress-info">
+                    <span id="progressMessage">Ready</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="progress-bar-wrapper">
+                    <progress id="progressBar" class="progress-bar" value="0" max="100"></progress>
+                </div>
+            </div>
+            <div class="log-container">
+                <div class="log-header">
+                    <span>System Log</span>
+                    <button id="clearLogBtn" class="btn-small">Clear</button>
+                </div>
+                <div id="logDisplay" class="log-display"></div>
+            </div>
+        </footer>
     </div>
-    <p id="status-text">Idle</p>
-
-    <script src="js/main.js"></script>
-    <script>
-        window.addEventListener('pywebviewready', async () => {
-            const info = await window.pywebview.api.get_app_info();
-            document.getElementById('app-info').innerText = `${info.name} v${info.version} - ${info.status}`;
-        });
-    </script>
+    <scrip src="js/app.js"></scrip>
+    <scrip src="js/piano-roll.js"></scrip>
+    <scrip src="js/progress.js"></scrip>
+    <scrip src="js/playback.js"></scrip>
 </body>
 </html>
