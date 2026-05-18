@@ -277,17 +277,6 @@ class NocturneAPI:
             self.current_arrangement = final_arrangement
             self.current_project["arrangement"] = final_arrangement
 
-            logger.info("--- MUSICAL AUDIT (First 500 Events) ---")
-            header = f"{'TIME'.ljust(6)} | {'TICKS'.ljust(6)} | {'HAND'.ljust(4)} | {'NOTE'.ljust(5)} | {'VEL'.ljust(4)} | {'SOURCE'}"
-            logger.info(header)
-            logger.info("-" * len(header))
-            
-            for n in final_notes[:500]:
-                note_name = self.arranger.midi_to_name(n.pitch)
-                hand_label = "LH" if n.hand == "left" else "RH"
-                logger.info(f"{str(round(n.start, 2)).ljust(6)} | {str(n.quantized_start).ljust(6)} | {hand_label.ljust(4)} | {note_name.ljust(5)} | {str(n.velocity).ljust(4)} | {n.source}")
-            
-            logger.info("-" * len(header))
             logger.info(f"Final Arrangement Created: {len(final_notes)} notes, {len(pedal_data)} pedal events.")
 
             self._update_ui(f"Success! Arrangement Complete (Key: {final_arrangement.key})", 100)

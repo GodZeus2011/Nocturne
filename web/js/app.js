@@ -156,7 +156,7 @@ class NocturneApp {
     }
 
     async pollForArrangement() {
-        const maxAttempts = 600;
+        const maxAttempts = 2400;
         let attempts = 0;
         
         const pollInterval = setInterval(async () => {
@@ -177,6 +177,12 @@ class NocturneApp {
                     if (arrangement) {
                         this.currentArrangement = arrangement;
                         this.isProcessing = false;
+
+                        if (window.pianoRoll) {
+                            window.pianoRoll = new PianoRoll('pianoRollCanvas', arrangement);
+                        } else {
+                            window.pianoRoll = new PianoRoll('pianoRollCanvas', arrangement);
+                        }
                         
                         this.updateStats(
                             "Complete",
