@@ -1,5 +1,6 @@
 import webview
 import threading
+import time
 from pathlib import Path
 from mido import MidiFile, MidiTrack, Message
 from src.core.config import APP_NAME, VERSION, INTERIM_DIR, OUTPUT_DIR
@@ -19,6 +20,7 @@ class NocturneAPI:
         self.processing_progress = 0
         self.processing_message = "Ready"
         self.cancel_requested = False
+        self.pipeline_start_time = None
         
         self.separation_service = SeparationService()
         self.transcription_service = TranscriptionService()
@@ -84,12 +86,25 @@ class NocturneAPI:
         thread.start()
         return {"status": "success", "message": "Processing..."}
 
-    def _update_ui(self, message, progress):
-        self.processing_message = message
+    def _update_ui_with_timing(self, message, progress):
+        elapsed = time.time() - self.pipeline_start_time
+        
+        if progress > 5:
+            rate = elapsed / progress
+            remaining = rate * (100 - progress)
+        else:
+            remaining = 0
+        
+        elapsed_str = f"{int(elapsed)}s"
+        remaining_str = f"{int(remaining)}s"
+        
+        full_message = f"{message} ({elapsed_str} elapsed, ~{remaining_str} remaining)"
+        
+        self.processing_message = full_message
         self.processing_progress = progress
         
         if self._window:
-            safe_message = message.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+            safe_message = full_message.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
             
             try:
                 self._window.evaluate_js(
@@ -204,14 +219,15 @@ class NocturneAPI:
     def _run_pipeline(self, file_path):
         self.is_processing = True
         self.current_arrangement = None
+        self.pipeline_start_time = time.time()
         
         try:
             workspace = self.current_project["workspace"]
 
-            self._update_ui("Stem Separation...", 15)
-            stems_path = self.separation_service.run_separation(file_path, workspace, self._update_ui)
+            self._update_ui_with_timing("AI Stem Separation...", 10)
+            stems_path = self.separation_service.run_separation(file_path, workspace, self._update_ui_with_timing)
 
-            self._update_ui("Analyzing Rhythm...", 35)
+            self._update_ui_with_timing("Analyzing Rhythm...", 32)
             tempo_data = self.transcription_service.get_tempo_data(stems_path)
             self.current_project.update(tempo_data)
 
@@ -227,7 +243,7 @@ class NocturneAPI:
                     logger.warning("Processing cancelled by user.")
                     return
                 
-                self._update_ui(f"Transcribing {stem['source']}...", 40 + (i * 20))
+                self._update_ui_with_timing(f"Transcribing {stem['source']}...", 40 + (i * 20))
                 path = stems_path / stem["file"]
                 if not path.exists():
                     continue
@@ -244,7 +260,7 @@ class NocturneAPI:
                 
                 all_transcribed_notes.extend(stem_notes)
             
-            self._update_ui("Finalizing arrangement...", 85)
+            self._update_ui_with_timing("Finalizing arrangement...", 85)
 
             self.current_project["key"] = self.harmony_engine.detect_key(all_transcribed_notes)
 
@@ -262,7 +278,7 @@ class NocturneAPI:
             final_notes = self.arranger.apply_density(final_notes, level="normal")
             final_notes = self.arranger.apply_styles(final_notes, style="pop")
 
-            self._update_ui("Adding sustain pedal...", 95)
+            self._update_ui_with_timing("Adding sustain pedal...", 95)
 
             pedal_data = self.arranger.generate_sustain_pedal(self.current_project["beat_times"])
 
@@ -277,14 +293,23 @@ class NocturneAPI:
             self.current_arrangement = final_arrangement
             self.current_project["arrangement"] = final_arrangement
 
+            logger.info("--- MUSICAL AUDIT (First 500 Events) ---")
+            header = f"{'TIME'.ljust(6)} | {'TICKS'.ljust(6)} | {'HAND'.ljust(4)} | {'NOTE'.ljust(5)} | {'VEL'.ljust(4)} | {'SOURCE'}"
+            logger.info(header)
+            logger.info("-" * len(header))
+            
+            for n in final_notes[:500]:
+                note_name = self.arranger.midi_to_name(n.pitch)
+                hand_label = "LH" if n.hand == "left" else "RH"
+                logger.info(f"{str(round(n.start, 2)).ljust(6)} | {str(n.quantized_start).ljust(6)} | {hand_label.ljust(4)} | {note_name.ljust(5)} | {str(n.velocity).ljust(4)} | {n.source}")
+            
+            logger.info("-" * len(header))
             logger.info(f"Final Arrangement Created: {len(final_notes)} notes, {len(pedal_data)} pedal events.")
 
-            self._update_ui(f"Success! Arrangement Complete (Key: {final_arrangement.key})", 100)
+            self._update_ui_with_timing("Success! Complete", 100)
 
         except Exception as e:
             logger.error(f"Pipeline Error: {e}")
-            self._update_ui(f"Error: {str(e)}", 0)
+            self._update_ui_with_timing(f"Error: {str(e)}", 0)
         finally:
             self.is_processing = False
-
-    

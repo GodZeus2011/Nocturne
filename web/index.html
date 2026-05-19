@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nocturne - Piano Arranger</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
     <div class="app-container">
@@ -24,7 +24,7 @@
             </section>
 
             <section class="sidebar-section">
-                <h2>Arrangement</h2>
+                <h2>Settings</h2>
                 
                 <div class="control-group">
                     <label for="difficultySelect">Difficulty</label>
@@ -46,7 +46,7 @@
             </section>
 
             <section class="sidebar-section">
-                <h2>Live Stats</h2>
+                <h2>Stats</h2>
                 <div class="stats-grid">
                     <div class="stat-badge">
                         <span class="stat-label">Key</span>
@@ -79,32 +79,28 @@
                 <div class="canvas-overlay">
                     <p id="canvasMessage">Load an audio file to begin</p>
                 </div>
+                
+                <div class="progress-overlay" id="progressOverlay">
+                    <div class="progress-bar-wrapper">
+                        <div id="progressBar" class="progress-bar-fill"></div>
+                    </div>
+                    <div class="progress-info">
+                        <span id="progressMessage">Ready</span>
+                    </div>
+                </div>
             </div>
-        </main>
 
-        <footer class="progress-footer">
-            <div class="progress-bar-container">
-                <div class="progress-info">
-                    <span id="progressMessage">Ready</span>
-                    <span id="progressPercent">0%</span>
-                </div>
-                <div class="progress-bar-wrapper">
-                    <div id="progressBar" class="progress-bar-fill"></div>
-                </div>
-            </div>
-            <div class="log-container">
+            <div class="log-panel">
                 <div class="log-header">
-                    <span>System Log</span>
+                    <span>Processing Log</span>
                     <button id="clearLogBtn" class="btn-small">Clear</button>
                 </div>
                 <div id="logDisplay" class="log-display"></div>
             </div>
-        </footer>
+        </main>
     </div>
 
     <script src="/js/app.js"></script>
     <script src="/js/piano-roll.js"></script>
-    <script src="/js/progress.js"></script>
-    <script src="/js/playback.js"></script>
 </body>
 </html>
