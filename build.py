@@ -234,7 +234,7 @@ exe = EXE(
     name='Nocturne',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=True,
+    strip=False,
     upx=True,
     upx_exclude=[
         'vcruntime140.dll',
@@ -256,7 +256,7 @@ coll = COLLECT(
     a.binaries,
     a.zipfiles,
     a.datas,
-    strip=True,
+    strip=False,
     upx=True,
     upx_exclude=[
         'vcruntime140.dll',
@@ -425,7 +425,6 @@ coll = COLLECT(
         self.log(f"Total Package Size: {total_mb:.2f} MB", "INFO")
     
     def create_run_script(self):
-        """Create batch file to run executable"""
         self.log("Creating run script...", "STEP")
         
         run_script = self.root_dir / "run.bat"

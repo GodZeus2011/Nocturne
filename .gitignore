@@ -2,15 +2,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 .venv/
-venv/
-env/
-*.egg-info/
-dist-info/
-
 build/
 dist/
 *.spec
-nocturne.spec
 
 data/interim/*
 data/output/*
@@ -18,9 +12,6 @@ data/output/*
 !data/output/.gitkeep
 
 assets/models/
-*.pth
-*.pt
-*.onnx
 
 *.log
 data/*.log
@@ -29,13 +20,4 @@ data/*.log
 Thumbs.db
 
 .vscode/
-.idea/
-*.swp
-*.swo
-
-.env
-.env.local
-
-.cache/
-*.cache
-__pycache__/
+.idea/yes
