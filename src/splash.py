@@ -1,5 +1,4 @@
 import tkinter as tk
-from tkinter import ttk
 import threading
 import time
 import sys
@@ -83,13 +82,15 @@ class SplashScreen:
     def update_progress(self, value, status=""):
         """Update progress bar and status"""
         value = max(0, min(100, value))
-        
         self.progress_fill.place(relwidth=value / 100)
         
         if status:
             self.status_label.config(text=status)
         
-        self.root.update()
+        try:
+            self.root.update()
+        except:
+            pass
     
     def show(self, callback=None):
         """Display splash screen and run callback"""
@@ -125,15 +126,26 @@ class SplashScreen:
             self.update_progress(100, "Launching Nocturne...")
             time.sleep(0.5)
             
-            self.root.destroy()
+            try:
+                self.root.destroy()
+            except:
+                pass
             
             if callback:
-                callback()
+                try:
+                    callback()
+                except Exception as e:
+                    print(f"Error in callback: {e}")
+                    import traceback
+                    traceback.print_exc()
         
-        thread = threading.Thread(target=run_loading, daemon=True)
+        thread = threading.Thread(target=run_loading, daemon=False)
         thread.start()
         
-        self.root.mainloop()
+        try:
+            self.root.mainloop()
+        except:
+            pass
 
 def show_splash(duration=3, callback=None):
     """Convenience function to show splash screen"""
