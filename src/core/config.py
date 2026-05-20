@@ -31,4 +31,4 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 APP_NAME = "Nocturne"
 VERSION = "0.1.0"
-DEBUG = True 
+DEBUG = False 

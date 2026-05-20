@@ -1,25 +1,39 @@
+import sys
 import webview
-import warnings
-from src.core.config import WEB_DIR, APP_NAME, DEBUG
+from pathlib import Path
 from src.api import NocturneAPI
+from src.core.config import Config
 
-warnings.filterwarnings("ignore", category=UserWarning)
-
-def main():
+def start_nocturne():
+    """Main application entry point"""
+    
+    
     api = NocturneAPI()
     
+    html_path = Path(__file__).parent.parent / "web" / "index.html"
+    
     window = webview.create_window(
-        title=APP_NAME,
-        url=str(WEB_DIR / "index.html"),
+        title="Nocturne - Piano Transcription",
+        url=str(html_path),
         js_api=api,
-        width=1000,
-        height=700,
+        width=1280,
+        height=800,
         resizable=True,
-        background_color='#1a1a1a'
+        background_color="#121212"
     )
+    
+    webview.start(debug=False)
 
-    api.set_window(window)
-    webview.start(debug=DEBUG)
+def main():
+    """Entry point with splash screen"""
+    try:
+        from src.splash import show_splash
+        
+        show_splash(duration=3, callback=start_nocturne)
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        start_nocturne()
 
 if __name__ == "__main__":
     main()
