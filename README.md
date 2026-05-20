@@ -122,3 +122,17 @@ This is the Final step where the arrangement is brought together.
 + **Jazz Style:** Automatically adds harmonic blues to detected chords.
 
 
+## Stage 8: Arrangment Visuals
+
+This is where the arrangement is displayed in a slick minimal dashboard.
+
+### Implementations:
+
++ **Piano Roll** - 88-key interactive visualization with real-time playhead, zoom/pan controls, and note rendering by hand assignment.
+
++ **Playback Engine** - play/pause/stop controls, tempo multiplier (0.5x-2.0x), time display (MM:SS), and progress tracking.
+
++ **Progress System** - Real-time animated progress bar, timestamped log entries organized by processing phase (Separation/Transcription/Arrangement/Complete) with color-coded levels.
+
++ **Draggable UI Controls** - Floating control bar with smooth repositioning.
+
