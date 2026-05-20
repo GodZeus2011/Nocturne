@@ -1,8 +1,6 @@
 class NocturneApp {
     constructor() {
         this.api = null;
-        this.waitForAPI();
-        
         this.currentArrangement = null;
         this.isProcessing = false;
         this.selectedAudioPath = null;
@@ -12,14 +10,18 @@ class NocturneApp {
             'Arrangement': [],
             'Complete': []
         };
+        this.pollInterval = null;
         
         this.initializeUI();
+        this.waitForAPI();
         this.attachEventListeners();
+        this.setupDraggableControls();
+        this.setupPlaybackSync();
     }
 
     waitForAPI() {
         const onReady = () => {
-            if (window.pywebview && window.pywebview.api) {
+            if (window.pywebview?.api) {
                 this.api = window.pywebview.api;
                 console.log("Nocturne API connected");
                 this.addLog("Nocturne API connected", "success", "Separation");
@@ -30,16 +32,21 @@ class NocturneApp {
             }
         };
         
-        window.addEventListener('pywebviewready', onReady);
-        
-        if (window.pywebview && window.pywebview.api) {
+        if (window.pywebview?.api) {
             onReady();
+        } else {
+            window.addEventListener('pywebviewready', onReady, { once: true });
         }
     }
 
     initializeUI() {
         this.resizeCanvas();
-        window.addEventListener('resize', () => this.resizeCanvas());
+        
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => this.resizeCanvas(), 150);
+        });
         
         this.addLog("Nocturne starting up...", "info", "Separation");
     }
@@ -68,7 +75,6 @@ class NocturneApp {
         const diffSelect = document.getElementById('difficultySelect');
         if (diffSelect) {
             diffSelect.addEventListener('change', (e) => {
-                console.log("Difficulty changed to:", e.target.value);
                 this.addLog(`Difficulty: ${e.target.value}`, "info", "Separation");
             });
         }
@@ -76,10 +82,87 @@ class NocturneApp {
         const styleSelect = document.getElementById('styleSelect');
         if (styleSelect) {
             styleSelect.addEventListener('change', (e) => {
-                console.log("Style changed to:", e.target.value);
                 this.addLog(`Style: ${e.target.value}`, "info", "Separation");
             });
         }
+    }
+
+    setupDraggableControls() {
+        const controlBar = document.getElementById('playbackControlBar');
+        const dragHandle = document.getElementById('controlDragHandle');
+        
+        if (!controlBar || !dragHandle) return;
+
+        let isDragging = false;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        dragHandle.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            const rect = controlBar.getBoundingClientRect();
+            offsetX = e.clientX - rect.left;
+            offsetY = e.clientY - rect.top;
+            dragHandle.style.cursor = 'grabbing';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+
+            const x = e.clientX - offsetX;
+            const y = e.clientY - offsetY;
+
+            controlBar.style.position = 'fixed';
+            controlBar.style.left = x + 'px';
+            controlBar.style.top = y + 'px';
+            controlBar.style.bottom = 'auto';
+            controlBar.style.transform = 'none';
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            dragHandle.style.cursor = 'move';
+        });
+
+        dragHandle.addEventListener('mouseenter', () => {
+            if (!isDragging) {
+                dragHandle.style.cursor = 'move';
+            }
+        });
+
+        dragHandle.addEventListener('mouseleave', () => {
+            if (!isDragging) {
+                dragHandle.style.cursor = 'default';
+            }
+        });
+    }
+
+    setupPlaybackSync() {
+        if (window.playbackEngine) {
+            window.playbackEngine.onTickUpdate = (tick) => {
+                this.updatePlaybackUI(tick);
+                
+                if (window.pianoRoll) {
+                    window.pianoRoll.setPlayheadPos(tick);
+                }
+            };
+            
+            window.playbackEngine.onPlaybackEnd = () => {
+                this.onPlaybackComplete();
+            };
+        }
+    }
+
+    updatePlaybackUI(tick) {
+        const progress = window.playbackEngine ? window.playbackEngine.getProgress() : 0;
+        const progressBar = document.getElementById('progressBar');
+        
+        if (progressBar) {
+            progressBar.style.width = `${progress}%`;
+        }
+    }
+
+    onPlaybackComplete() {
+        this.addLog("Playback complete", "success", "Complete");
     }
 
     async checkAppInfo() {
@@ -90,11 +173,10 @@ class NocturneApp {
             }
 
             const info = await this.api.get_app_info();
-            console.log("App Info:", info);
             this.addLog(`Nocturne v${info.version} Ready`, "success", "Separation");
         } catch (e) {
             console.error("Error getting app info:", e);
-            this.addLog(`Error: ${e.message}`, "error", "Separation");
+            this.addLog(`Error: ${this.getErrorMessage(e)}`, "error", "Separation");
         }
     }
 
@@ -112,21 +194,28 @@ class NocturneApp {
                 this.selectedAudioPath = filePath;
                 const fileName = filePath.split('\\').pop().split('/').pop();
                 
-                document.getElementById('selectedFilePath').textContent = fileName;
-                document.getElementById('startProcessBtn').disabled = false;
+                const filePathEl = document.getElementById('selectedFilePath');
+                if (filePathEl) {
+                    filePathEl.textContent = fileName;
+                }
                 
-                this.addLog(`Selected: ${fileName}`, "success", "Separation");
+                const startBtn = document.getElementById('startProcessBtn');
+                if (startBtn) {
+                    startBtn.disabled = false;
+                }
                 
                 const overlay = document.querySelector('.canvas-overlay');
                 if (overlay) {
                     overlay.classList.add('hidden');
                 }
+                
+                this.addLog(`Selected: ${fileName}`, "success", "Separation");
             } else {
                 this.addLog("File selection cancelled", "info", "Separation");
             }
         } catch (e) {
             console.error("Select audio error:", e);
-            this.addLog(`Error: ${e.message || e}`, "error", "Separation");
+            this.addLog(`Error: ${this.getErrorMessage(e)}`, "error", "Separation");
         }
     }
 
@@ -150,8 +239,12 @@ class NocturneApp {
         };
         this.renderLog();
         
-        document.getElementById('startProcessBtn').disabled = true;
-        document.getElementById('exportMidiBtn').disabled = true;
+        const startBtn = document.getElementById('startProcessBtn');
+        const exportBtn = document.getElementById('exportMidiBtn');
+        
+        if (startBtn) startBtn.disabled = true;
+        if (exportBtn) exportBtn.disabled = true;
+        
         this.updateStats("Processing...", "—", "—", "—");
         
         try {
@@ -161,73 +254,85 @@ class NocturneApp {
             this.pollForArrangement();
         } catch (e) {
             console.error("Processing error:", e);
-            this.addLog(`Processing error: ${e.message || e}`, "error", "Separation");
+            this.addLog(`Processing error: ${this.getErrorMessage(e)}`, "error", "Separation");
             this.isProcessing = false;
-            document.getElementById('startProcessBtn').disabled = false;
+            
+            if (startBtn) startBtn.disabled = false;
         }
     }
 
     async pollForArrangement() {
         const maxAttempts = 1800;
         let attempts = 0;
+        let arrangementReceived = false;
         
-        const pollInterval = setInterval(async () => {
+        this.pollInterval = setInterval(async () => {
             attempts++;
             
             try {
                 const status = await this.api.get_processing_status();
                 
-                console.log(`[Poll ${attempts}] Status:`, status);
-                
                 this.updateProgress(status.message, status.progress);
                 
-                if (!status.is_processing) {
-                    console.log("Processing finished, requesting arrangement...");
+                if (!status.is_processing && !arrangementReceived) {
+                    arrangementReceived = true;
+                    
+                    this.addLog("Processing finished, retrieving arrangement...", "info", "Arrangement");
                     
                     const arrangement = await this.api.get_arrangement();
                     
-                    if (arrangement) {
+                    if (arrangement && arrangement.notes && arrangement.notes.length > 0) {
                         this.currentArrangement = arrangement;
                         this.isProcessing = false;
 
                         if (window.pianoRoll) {
-                            window.pianoRoll = new PianoRoll('pianoRollCanvas', arrangement);
-                        } else {
-                            window.pianoRoll = new PianoRoll('pianoRollCanvas', arrangement);
+                            window.pianoRoll.destroy();
+                        }
+                        window.pianoRoll = new PianoRoll('pianoRollCanvas', arrangement);
+                        
+                        if (window.playbackEngine) {
+                            window.playbackEngine.loadArrangement(arrangement);
                         }
                         
                         this.updateStats(
                             "Complete",
-                            arrangement.key,
-                            `${Math.round(arrangement.tempo)}`,
+                            arrangement.key || "—",
+                            `${Math.round(arrangement.tempo || 0)}`,
                             `${arrangement.notes.length}`
                         );
                         
                         this.addLog("Processing complete!", "success", "Complete");
-                        this.addLog(`Arrangement: ${arrangement.notes.length} notes | Key: ${arrangement.key} | BPM: ${Math.round(arrangement.tempo)}`, "info", "Complete");
+                        this.addLog(
+                            `Arrangement: ${arrangement.notes.length} notes | Key: ${arrangement.key} | BPM: ${Math.round(arrangement.tempo)}`,
+                            "info",
+                            "Complete"
+                        );
                         
-                        document.getElementById('exportMidiBtn').disabled = false;
-                        document.getElementById('startProcessBtn').disabled = false;
+                        const exportBtn = document.getElementById('exportMidiBtn');
+                        const startBtnAgain = document.getElementById('startProcessBtn');
+                        if (exportBtn) exportBtn.disabled = false;
+                        if (startBtnAgain) startBtnAgain.disabled = false;
                         
-                        console.log("Arrangement received:", arrangement);
-                        
-                        clearInterval(pollInterval);
+                        clearInterval(this.pollInterval);
                     } else {
-                        console.warn("Processing finished but no arrangement available yet");
+                        console.warn("Processing finished but no valid arrangement");
+                        this.addLog("Error: No arrangement data received", "error", "Complete");
+                        arrangementReceived = false;
                     }
                 }
             } catch (e) {
                 console.error("Poll error:", e);
-                this.addLog(`Poll error: ${e.message || e}`, "warning", "Arrangement");
+                this.addLog(`Poll error: ${this.getErrorMessage(e)}`, "warning", "Arrangement");
             }
             
             if (attempts >= maxAttempts) {
                 this.addLog("Processing timeout (30 minutes)", "error", "Complete");
                 this.isProcessing = false;
-                document.getElementById('startProcessBtn').disabled = false;
-                clearInterval(pollInterval);
+                const startBtn = document.getElementById('startProcessBtn');
+                if (startBtn) startBtn.disabled = false;
+                clearInterval(this.pollInterval);
             }
-        }, 500);
+        }, 1000);
     }
 
     async exportMidi() {
@@ -247,13 +352,12 @@ class NocturneApp {
             const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
             const filename = `nocturne_${timestamp}.mid`;
             
-            const result = await this.api.export_midi(filename);
+            await this.api.export_midi(filename);
             
             this.addLog(`Exported: ${filename}`, "success", "Complete");
-            console.log("Export result:", result);
         } catch (e) {
             console.error("Export error:", e);
-            this.addLog(`Export error: ${e.message || e}`, "error", "Complete");
+            this.addLog(`Export error: ${this.getErrorMessage(e)}`, "error", "Complete");
         }
     }
 
@@ -266,31 +370,25 @@ class NocturneApp {
         }
         
         if (progressBar) {
-            progressBar.style.width = `${percentage}%`;
+            const clampedProgress = Math.max(0, Math.min(100, percentage));
+            progressBar.style.width = `${clampedProgress}%`;
         }
     }
 
     updateStats(status, key, bpm, notes) {
-        const statusEl = document.getElementById('statStatus');
-        const keyEl = document.getElementById('statKey');
-        const bpmEl = document.getElementById('statBPM');
-        const notesEl = document.getElementById('statNotes');
+        const updates = {
+            'statStatus': status,
+            'statKey': key,
+            'statBPM': bpm,
+            'statNotes': notes
+        };
         
-        if (statusEl) {
-            statusEl.textContent = status;
-            this.flashBadge(statusEl.parentElement);
-        }
-        if (keyEl) {
-            keyEl.textContent = key;
-            this.flashBadge(keyEl.parentElement);
-        }
-        if (bpmEl) {
-            bpmEl.textContent = bpm;
-            this.flashBadge(bpmEl.parentElement);
-        }
-        if (notesEl) {
-            notesEl.textContent = notes;
-            this.flashBadge(notesEl.parentElement);
+        for (const [elementId, value] of Object.entries(updates)) {
+            const el = document.getElementById(elementId);
+            if (el) {
+                el.textContent = value;
+                this.flashBadge(el.parentElement);
+            }
         }
     }
 
@@ -298,14 +396,8 @@ class NocturneApp {
         if (!badgeElement) return;
         
         badgeElement.classList.remove('flash');
-        
-        setTimeout(() => {
-            badgeElement.classList.add('flash');
-        }, 10);
-        
-        setTimeout(() => {
-            badgeElement.classList.remove('flash');
-        }, 610);
+        void badgeElement.offsetWidth;
+        badgeElement.classList.add('flash');
     }
 
     addLog(message, level = "info", section = "Separation") {
@@ -318,6 +410,11 @@ class NocturneApp {
         const entry = `[${timeStr}] ${message}`;
         
         this.logSections[section].push({ text: entry, level });
+        
+        if (this.logSections[section].length > 500) {
+            this.logSections[section].shift();
+        }
+        
         this.renderLog();
     }
 
@@ -393,8 +490,31 @@ class NocturneApp {
         const container = canvas.parentElement;
         if (!container) return;
         
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientHeight;
+        const dpr = window.devicePixelRatio || 1;
+        
+        canvas.width = container.clientWidth * dpr;
+        canvas.height = container.clientHeight * dpr;
+        
+        canvas.style.width = container.clientWidth + 'px';
+        canvas.style.height = container.clientHeight + 'px';
+        
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.scale(dpr, dpr);
+        }
+    }
+
+    getErrorMessage(e) {
+        if (typeof e === 'string') return e;
+        if (e?.message) return e.message;
+        if (e?.error) return e.error;
+        return String(e);
+    }
+
+    destroy() {
+        if (this.pollInterval) {
+            clearInterval(this.pollInterval);
+        }
     }
 }
 
@@ -404,8 +524,12 @@ document.addEventListener('DOMContentLoaded', () => {
     window.updateProgress = (message, progress) => {
         if (window.app) {
             window.app.updateProgress(message, progress);
-        } else {
-            console.warn("App not initialized yet");
         }
     };
+});
+
+window.addEventListener('beforeunload', () => {
+    if (window.app) {
+        window.app.destroy();
+    }
 });

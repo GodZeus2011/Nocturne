@@ -90,6 +90,40 @@
                 </div>
             </div>
 
+            <div class="playback-control-bar" id="playbackControlBar">
+                <div class="control-drag-handle" id="controlDragHandle">
+                    <span class="drag-dots">⋮⋮</span>
+                </div>
+                
+                <div class="control-buttons-group">
+                    <button id="playBtn" class="play-control-btn" title="Play" disabled>
+                        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+                    </button>
+                    <button id="pauseBtn" class="play-control-btn hidden" title="Pause">
+                        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" fill="currentColor"/></svg>
+                    </button>
+                    <button id="stopBtn" class="play-control-btn" title="Stop" disabled>
+                        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 6h12v12H6z" fill="currentColor"/></svg>
+                    </button>
+                </div>
+
+                <div class="time-display-container">
+                    <span id="currentTimeDisplay">00:00</span>
+                    <span class="time-separator">/</span>
+                    <span id="totalTimeDisplay">00:00</span>
+                </div>
+
+                <div class="slider-control-group">
+                    <span class="slider-label">Speed</span>
+                    <input type="range" id="tempoSlider" min="0.5" max="2.0" step="0.1" value="1.0" class="playback-range-slider">
+                    <span id="tempoValueLabel" class="slider-value-indicator">1.0x</span>
+                </div>
+
+                <div id="pedalIndicator" class="pedal-status-badge" title="Sustain Pedal Status">
+                    PEDAL
+                </div>
+            </div>
+
             <div class="log-panel">
                 <div class="log-header">
                     <span>Processing Log</span>
@@ -100,7 +134,8 @@
         </main>
     </div>
 
-    <script src="/js/app.js"></script>
     <script src="/js/piano-roll.js"></script>
+    <script src="/js/playback.js"></script>
+    <script src="/js/app.js"></script>
 </body>
 </html>
